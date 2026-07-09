@@ -25,6 +25,7 @@ var/
 
 # Hydra
 outputs/
+frames/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -62,6 +63,19 @@ target/
 
 # DotEnv configuration
 .env
+.env.*
+*.local
+*.secret
+*.secrets
+*.token
+*.key
+
+# Local Python environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
 
 # Database
 *.db
@@ -80,16 +94,45 @@ target/
 .ipynb_checkpoints/
 
 # exclude data from source control by default
-data
+/data/
 
 # Mac OS-specific storage files
 .DS_Store
+Thumbs.db
+ehthumbs.db
 
 # mypy
 .mypy_cache/
 
+# pytest and ruff caches
+.pytest_cache/
+.ruff_cache/
+
 # vim
 *.swp
+*.swo
+*.tmp
+*.temp
+
+# Model weights and exports
+*.ckpt
+*.pth
+*.pt
+*.onnx
+*.safetensors
+*.bin
+data/checkpoints/
+data/ddppo-models/
+yolo_archive/models/
+
+# Generated media and local artifacts
+*.mp4
+*.mov
+*.avi
+*.webm
+res/video/
+res/img/*.gif
+docs/images/habitat-lab-tdmap-viz-images/*.gif
 
 # habitat_baselines outputs
 /videos
