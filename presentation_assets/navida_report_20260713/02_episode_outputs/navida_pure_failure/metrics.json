@@ -1,0 +1,15 @@
+{
+  "episode_index": 0,
+  "episode_id": "7",
+  "success": 0.0,
+  "spl": 0.0,
+  "collision_steps": 11,
+  "minimum_distance_m": 0.1717895269393921,
+  "minimum_distance_step": 58,
+  "final_distance_m": 0.37534233927726746,
+  "final_action": "move_forward",
+  "final_vlm_action": "move_forward",
+  "final_controller_action": "move_forward",
+  "stop_steps": [],
+  "trajectory_steps": 80
+}

@@ -130,6 +130,9 @@ yolo_archive/models/
 *.mov
 *.avi
 *.webm
+!presentation_assets/**/*.mp4
+!presentation_assets/**/frames/
+!presentation_assets/**/frames/**
 res/video/
 res/img/*.gif
 docs/images/habitat-lab-tdmap-viz-images/*.gif

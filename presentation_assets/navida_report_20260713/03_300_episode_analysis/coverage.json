@@ -1,0 +1,686 @@
+{
+  "actions": {
+    "move_forward": 545,
+    "stop": 98,
+    "turn_left": 430,
+    "turn_right": 427
+  },
+  "bearing_bins": {
+    "ahead": 490,
+    "left": 264,
+    "right": 250,
+    "strong_left": 246,
+    "strong_right": 250
+  },
+  "cells": [
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "arrived",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "ahead",
+      "distance_bin": "arrived",
+      "episodes": 51,
+      "samples": 51,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "far",
+      "episodes": 33,
+      "samples": 41,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "ahead",
+      "distance_bin": "far",
+      "episodes": 38,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "ahead",
+      "distance_bin": "far",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "mid",
+      "episodes": 39,
+      "samples": 41,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "ahead",
+      "distance_bin": "mid",
+      "episodes": 39,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "ahead",
+      "distance_bin": "mid",
+      "episodes": 40,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "near",
+      "episodes": 124,
+      "samples": 124,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "ahead",
+      "distance_bin": "near",
+      "episodes": 32,
+      "samples": 32,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "ahead",
+      "distance_bin": "near",
+      "episodes": 40,
+      "samples": 40,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "left",
+      "distance_bin": "arrived",
+      "episodes": 8,
+      "samples": 8,
+      "scenes": 6,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "arrived",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "left",
+      "distance_bin": "arrived",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "left",
+      "distance_bin": "far",
+      "episodes": 36,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "far",
+      "episodes": 39,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "left",
+      "distance_bin": "far",
+      "episodes": 39,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "left",
+      "distance_bin": "mid",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "mid",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "left",
+      "distance_bin": "mid",
+      "episodes": 17,
+      "samples": 18,
+      "scenes": 9,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "left",
+      "distance_bin": "near",
+      "episodes": 3,
+      "samples": 3,
+      "scenes": 3,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "near",
+      "episodes": 26,
+      "samples": 30,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "left",
+      "distance_bin": "near",
+      "episodes": 3,
+      "samples": 3,
+      "scenes": 2,
+      "under_target": true
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "right",
+      "distance_bin": "arrived",
+      "episodes": 12,
+      "samples": 12,
+      "scenes": 7,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "arrived",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "right",
+      "distance_bin": "far",
+      "episodes": 36,
+      "samples": 41,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "right",
+      "distance_bin": "far",
+      "episodes": 38,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "far",
+      "episodes": 40,
+      "samples": 41,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "right",
+      "distance_bin": "mid",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "right",
+      "distance_bin": "mid",
+      "episodes": 13,
+      "samples": 13,
+      "scenes": 7,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "mid",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "right",
+      "distance_bin": "near",
+      "episodes": 4,
+      "samples": 4,
+      "scenes": 4,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "near",
+      "episodes": 15,
+      "samples": 18,
+      "scenes": 9,
+      "under_target": true
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "strong_left",
+      "distance_bin": "arrived",
+      "episodes": 13,
+      "samples": 13,
+      "scenes": 7,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_left",
+      "distance_bin": "far",
+      "episodes": 33,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "far",
+      "episodes": 34,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_left",
+      "distance_bin": "far",
+      "episodes": 37,
+      "samples": 40,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_left",
+      "distance_bin": "mid",
+      "episodes": 27,
+      "samples": 40,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "mid",
+      "episodes": 29,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_left",
+      "distance_bin": "mid",
+      "episodes": 13,
+      "samples": 18,
+      "scenes": 7,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_left",
+      "distance_bin": "near",
+      "episodes": 3,
+      "samples": 4,
+      "scenes": 3,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "near",
+      "episodes": 9,
+      "samples": 10,
+      "scenes": 8,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_left",
+      "distance_bin": "near",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_right",
+      "distance_bin": "arrived",
+      "episodes": 1,
+      "samples": 1,
+      "scenes": 1,
+      "under_target": true
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "strong_right",
+      "distance_bin": "arrived",
+      "episodes": 14,
+      "samples": 14,
+      "scenes": 7,
+      "under_target": true
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_right",
+      "distance_bin": "far",
+      "episodes": 35,
+      "samples": 41,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_right",
+      "distance_bin": "far",
+      "episodes": 34,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "far",
+      "episodes": 37,
+      "samples": 41,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_right",
+      "distance_bin": "mid",
+      "episodes": 30,
+      "samples": 40,
+      "scenes": 9,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_right",
+      "distance_bin": "mid",
+      "episodes": 19,
+      "samples": 22,
+      "scenes": 8,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "mid",
+      "episodes": 34,
+      "samples": 40,
+      "scenes": 10,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "strong_right",
+      "distance_bin": "near",
+      "episodes": 4,
+      "samples": 4,
+      "scenes": 3,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_right",
+      "distance_bin": "near",
+      "episodes": 2,
+      "samples": 2,
+      "scenes": 2,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "near",
+      "episodes": 4,
+      "samples": 5,
+      "scenes": 3,
+      "under_target": true
+    }
+  ],
+  "collision_states": {
+    "False": 1500
+  },
+  "core_cells": [
+    {
+      "action": "stop",
+      "bearing_bin": "strong_left",
+      "distance_bin": "arrived",
+      "samples": 13,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "near",
+      "samples": 10,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "mid",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "strong_left",
+      "distance_bin": "far",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "left",
+      "distance_bin": "arrived",
+      "samples": 8,
+      "under_target": true
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "near",
+      "samples": 30,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "mid",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "turn_left",
+      "bearing_bin": "left",
+      "distance_bin": "far",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "ahead",
+      "distance_bin": "arrived",
+      "samples": 51,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "near",
+      "samples": 124,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "mid",
+      "samples": 41,
+      "under_target": false
+    },
+    {
+      "action": "move_forward",
+      "bearing_bin": "ahead",
+      "distance_bin": "far",
+      "samples": 41,
+      "under_target": false
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "right",
+      "distance_bin": "arrived",
+      "samples": 12,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "near",
+      "samples": 18,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "mid",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "right",
+      "distance_bin": "far",
+      "samples": 41,
+      "under_target": false
+    },
+    {
+      "action": "stop",
+      "bearing_bin": "strong_right",
+      "distance_bin": "arrived",
+      "samples": 14,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "near",
+      "samples": 5,
+      "under_target": true
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "mid",
+      "samples": 40,
+      "under_target": false
+    },
+    {
+      "action": "turn_right",
+      "bearing_bin": "strong_right",
+      "distance_bin": "far",
+      "samples": 41,
+      "under_target": false
+    }
+  ],
+  "core_observed_cell_rate": 1.0,
+  "core_observed_cells": 20,
+  "core_possible_cells": 20,
+  "core_under_target_cells": 7,
+  "distance_bins": {
+    "arrived": 103,
+    "far": 605,
+    "mid": 512,
+    "near": 280
+  },
+  "episodes": 300,
+  "manifest": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/mixed/build_20260713_135434/manifest.jsonl",
+  "minimum_cell_count": 20,
+  "observed_cell_rate": 0.675,
+  "observed_cells": 54,
+  "possible_cells": 80,
+  "recovery_coverage": {
+    "actions": {
+      "move_forward": 135,
+      "stop": 12,
+      "turn_left": 152,
+      "turn_right": 127
+    },
+    "collision_samples": 0,
+    "episodes": 246,
+    "no_progress_samples": 426,
+    "samples": 426,
+    "scenes": 10
+  },
+  "samples": 1500,
+  "scenes": 10,
+  "stop_coverage": {
+    "episodes": 300,
+    "first_action_samples": 98,
+    "samples": 300,
+    "scenes": 10
+  },
+  "under_target_cells": 22
+}

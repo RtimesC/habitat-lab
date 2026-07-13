@@ -1,0 +1,36 @@
+{
+  "action_labels_by_task": {
+    "ids": {
+      "move_forward": 2956,
+      "stop": 300,
+      "turn_left": 1675,
+      "turn_right": 1499
+    },
+    "vln": {
+      "move_forward": 2956,
+      "stop": 300,
+      "turn_left": 1675,
+      "turn_right": 1499
+    }
+  },
+  "episodes": 300,
+  "max_history_frames": 8,
+  "max_level2_chunks": 3,
+  "max_samples": 3000,
+  "merge_probability": 0.7,
+  "sample_strategy": "coverage-balanced",
+  "samples": 3000,
+  "seed": 42,
+  "source_manifest": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/oracle/collect_20260713_135247/manifest.jsonl",
+  "tasks": {
+    "ids": 1500,
+    "vln": 1500
+  },
+  "trajectory_actions": {
+    "move_forward": 2956,
+    "stop": 300,
+    "turn_left": 1675,
+    "turn_right": 1499
+  },
+  "unique_chunks": 1500
+}

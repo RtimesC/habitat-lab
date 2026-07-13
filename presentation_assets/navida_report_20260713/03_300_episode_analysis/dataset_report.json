@@ -1,0 +1,88 @@
+{
+  "benchmark_comparable": false,
+  "dataset_label": "hm3d_13scene_coverage_300ep_v1",
+  "scene_overlap": [],
+  "train": {
+    "coverage_labels": {
+      "long_route": 207,
+      "low_clearance": 281,
+      "multi_turn": 172,
+      "reorientation": 60,
+      "standard": 60
+    },
+    "distance_m": {
+      "max": 14.96652889251709,
+      "mean": 9.252630877494813,
+      "min": 2.020624876022339
+    },
+    "episodes": 300,
+    "hm3d_citation": {
+      "bibtex": "@inproceedings{ramakrishnan2021hm3d,\n  title={Habitat-Matterport 3D Dataset ({HM}3D): 1000 Large-scale 3D Environments for Embodied {AI}},\n  author={Santhosh Kumar Ramakrishnan and Aaron Gokaslan and Erik Wijmans and Oleksandr Maksymets and Alexander Clegg and John M Turner and Eric Undersander and Wojciech Galuba and Andrew Westbury and Angel X Chang and Manolis Savva and Yili Zhao and Dhruv Batra},\n  booktitle={Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track},\n  year={2021},\n  url={https://arxiv.org/abs/2109.08238}\n}",
+      "citation_key": "ramakrishnan2021hm3d",
+      "title": "Habitat-Matterport 3D Dataset (HM3D): 1000 Large-scale 3D Environments for Embodied AI",
+      "url": "https://arxiv.org/abs/2109.08238",
+      "year": 2021
+    },
+    "instruction_sources": [
+      "hm3d_pointnav_template_v1"
+    ],
+    "path": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/datasets/train/train.json.gz",
+    "route_profiles": {
+      "long_route": 60,
+      "low_clearance": 60,
+      "multi_turn": 60,
+      "reorientation": 60,
+      "standard": 60
+    },
+    "scenes": [
+      "hm3d/example/00337-CFVBbU9Rsyb/CFVBbU9Rsyb.basis.glb",
+      "hm3d/example/00770-NBg5UqG3di3/NBg5UqG3di3.basis.glb",
+      "hm3d/example/00861-GLAQ4DNUx5U/GLAQ4DNUx5U.basis.glb",
+      "hm3d/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb",
+      "hm3d/minival/00801-HaxA7YrQdEC/HaxA7YrQdEC.basis.glb",
+      "hm3d/minival/00802-wcojb4TFT35/wcojb4TFT35.basis.glb",
+      "hm3d/minival/00803-k1cupFYWXJ6/k1cupFYWXJ6.basis.glb",
+      "hm3d/minival/00804-BHXhpBwSMLh/BHXhpBwSMLh.basis.glb",
+      "hm3d/minival/00805-SUHsP6z2gcJ/SUHsP6z2gcJ.basis.glb",
+      "hm3d/minival/00806-tQ5s4ShP627/tQ5s4ShP627.basis.glb"
+    ]
+  },
+  "val": {
+    "coverage_labels": {
+      "long_route": 47,
+      "low_clearance": 59,
+      "multi_turn": 40,
+      "reorientation": 12,
+      "standard": 12
+    },
+    "distance_m": {
+      "max": 14.91933536529541,
+      "mean": 10.699410887559255,
+      "min": 2.0676801204681396
+    },
+    "episodes": 60,
+    "hm3d_citation": {
+      "bibtex": "@inproceedings{ramakrishnan2021hm3d,\n  title={Habitat-Matterport 3D Dataset ({HM}3D): 1000 Large-scale 3D Environments for Embodied {AI}},\n  author={Santhosh Kumar Ramakrishnan and Aaron Gokaslan and Erik Wijmans and Oleksandr Maksymets and Alexander Clegg and John M Turner and Eric Undersander and Wojciech Galuba and Andrew Westbury and Angel X Chang and Manolis Savva and Yili Zhao and Dhruv Batra},\n  booktitle={Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track},\n  year={2021},\n  url={https://arxiv.org/abs/2109.08238}\n}",
+      "citation_key": "ramakrishnan2021hm3d",
+      "title": "Habitat-Matterport 3D Dataset (HM3D): 1000 Large-scale 3D Environments for Embodied AI",
+      "url": "https://arxiv.org/abs/2109.08238",
+      "year": 2021
+    },
+    "instruction_sources": [
+      "hm3d_pointnav_template_v1"
+    ],
+    "path": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/datasets/val/val.json.gz",
+    "route_profiles": {
+      "long_route": 12,
+      "low_clearance": 12,
+      "multi_turn": 12,
+      "reorientation": 12,
+      "standard": 12
+    },
+    "scenes": [
+      "hm3d/minival/00807-rsggHU7g7dh/rsggHU7g7dh.basis.glb",
+      "hm3d/minival/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb",
+      "hm3d/minival/00809-Qpor2mEya8F/Qpor2mEya8F.basis.glb"
+    ]
+  }
+}
