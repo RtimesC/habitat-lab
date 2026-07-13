@@ -15,9 +15,11 @@ from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 
 try:
+    from .navida_policy import NaVIDAChunkPolicy
     from .prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
     from .vlm_policy import DEFAULT_MODEL_ID, MockVLMPolicy, QwenVLMPolicy
 except ImportError:
+    from navida_policy import NaVIDAChunkPolicy
     from prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
     from vlm_policy import DEFAULT_MODEL_ID, MockVLMPolicy, QwenVLMPolicy
 
@@ -209,6 +211,21 @@ def instruction_text(obs, fallback=None):
     if instruction is not None:
         return str(instruction)
     return fallback or ""
+
+
+def episode_instruction_text(episode):
+    """Read an engineering instruction stored in Habitat episode metadata."""
+    info = getattr(episode, "info", None)
+    if info is not None and hasattr(info, "get"):
+        value = info.get("instruction")
+        if value:
+            return str(value)
+    instruction = getattr(episode, "instruction", None)
+    if isinstance(instruction, dict):
+        instruction = instruction.get("text")
+    elif hasattr(instruction, "text"):
+        instruction = instruction.text
+    return str(instruction) if instruction else ""
 
 
 def metric_values(metrics):
@@ -462,7 +479,8 @@ def run_navigation(env, policy, args):
 
         for episode_index in range(args.num_episodes):
             obs = env.reset()
-            instruction = args.instruction or instruction_text(obs, args.goal)
+            episode_fallback = episode_instruction_text(env.current_episode) or args.goal
+            instruction = args.instruction or instruction_text(obs, episode_fallback)
             episode_frame_dir = os.path.join(frame_dir, f"episode_{episode_index:03d}")
             os.makedirs(episode_frame_dir, exist_ok=True)
             episode_video_path = os.path.join(
@@ -569,6 +587,18 @@ def run_navigation(env, policy, args):
                     controller_action = policy_output.action
                     action_name = policy_output.action
                 if (
+                    args.force_stop_within_success_radius
+                    and goal_distance_m is not None
+                    and goal_distance_m < goal_success_distance
+                ):
+                    action_name = "stop"
+                    controller_action = "stop"
+                    policy_output.raw_text = (
+                        f"{policy_output.raw_text}\n"
+                        '{"success_radius_guard":"stop"}'
+                    )
+                    policy_output.is_valid = False
+                if (
                     not args.disable_anti_stuck
                     and action_name in {"turn_left", "turn_right"}
                     and action_name == previous_action
@@ -653,6 +683,8 @@ def run_navigation(env, policy, args):
                     policy_output.is_valid = False
                 if action_name not in args.execution_actions:
                     raise RuntimeError(f"Policy returned invalid action: {action_name}")
+                if action_name != vlm_action and hasattr(policy, "clear_action_queue"):
+                    policy.clear_action_queue()
 
                 action = ACTION_MAP[action_name]
                 obs = env.step(action)
@@ -790,6 +822,10 @@ def parse_args():
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument(
+        "--adapter-path",
+        help="Optional trained LoRA adapter directory to load on top of --model-id.",
+    )
+    parser.add_argument(
         "--instruction",
         help="Override the episode instruction. By default, use the VLN dataset instruction.",
     )
@@ -845,6 +881,11 @@ def parse_args():
         help="Allow stop before --min-stop-step.",
     )
     parser.add_argument(
+        "--force-stop-within-success-radius",
+        action="store_true",
+        help="Guarded evaluation: force stop when privileged goal distance is successful.",
+    )
+    parser.add_argument(
         "--min-stop-step",
         type=int,
         default=8,
@@ -880,6 +921,13 @@ def parse_args():
         help="Only anti-stuck forward when the target angle is within this range.",
     )
     parser.add_argument("--mock-policy", action="store_true")
+    parser.add_argument(
+        "--navida-chunk-policy",
+        action="store_true",
+        help="Use a NaVIDA adapter to generate and execute structured action chunks.",
+    )
+    parser.add_argument("--navida-max-history-frames", type=int, default=8)
+    parser.add_argument("--navida-max-executed-actions", type=int, default=3)
     return parser.parse_args()
 
 
@@ -905,10 +953,28 @@ def main():
             "with the current --no-stop setting."
         )
 
-    policy = (
-        MockVLMPolicy(allowed_actions=args.allowed_actions)
-        if args.mock_policy
-        else QwenVLMPolicy(
+    if args.navida_chunk_policy:
+        if args.mock_policy:
+            raise ValueError("--navida-chunk-policy cannot be combined with --mock-policy")
+        if args.qwen_role != "controller":
+            raise ValueError("--navida-chunk-policy requires --qwen-role controller")
+        if not args.adapter_path:
+            raise ValueError("--navida-chunk-policy requires --adapter-path")
+        policy = NaVIDAChunkPolicy(
+            model_id=args.model_id,
+            adapter_path=args.adapter_path,
+            fallback_action=policy_fallback_action,
+            max_history_frames=args.navida_max_history_frames,
+            max_executed_actions=args.navida_max_executed_actions,
+            device_map=args.device_map,
+            load_in_4bit=args.load_in_4bit,
+            bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
+            max_new_tokens=max(args.max_new_tokens, 64),
+        )
+    elif args.mock_policy:
+        policy = MockVLMPolicy(allowed_actions=args.allowed_actions)
+    else:
+        policy = QwenVLMPolicy(
             model_id=args.model_id,
             device_map=args.device_map,
             torch_dtype=args.torch_dtype,
@@ -917,8 +983,8 @@ def main():
             allowed_actions=args.allowed_actions,
             load_in_4bit=args.load_in_4bit,
             bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
+            adapter_path=args.adapter_path,
         )
-    )
 
     env = build_env(
         task_config=args.task_config,

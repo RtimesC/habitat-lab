@@ -72,6 +72,7 @@ class QwenVLMPolicy:
         allowed_actions=None,
         load_in_4bit=False,
         bnb_4bit_compute_dtype="float16",
+        adapter_path=None,
     ):
         self.model_id = model_id
         self.max_new_tokens = max_new_tokens
@@ -108,6 +109,15 @@ class QwenVLMPolicy:
                 bnb_4bit_use_double_quant=True,
             )
         self.model = model_cls.from_pretrained(model_id, **model_kwargs)
+        if adapter_path:
+            try:
+                from peft import PeftModel
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Loading --adapter-path requires peft. Install "
+                    "habitat_vln/requirements-training.txt first."
+                ) from exc
+            self.model = PeftModel.from_pretrained(self.model, adapter_path)
         self.model.eval()
 
         try:

@@ -165,3 +165,293 @@ Pass `--disable-anti-stuck` to inspect the raw model policy.
 ## Outputs
 
 Runtime artifacts go under `habitat_vln/outputs/`, which is ignored by git.
+
+## QLoRA Training Pipeline
+
+The training pipeline learns the four executable Habitat actions from Oracle
+trajectories. Each JSONL sample contains an RGB image, the episode instruction,
+the navigation state used by the current inference prompt, and the Oracle
+action. Images from one episode always stay in the same train/validation split.
+
+This first pipeline is an inspectable controller-imitation baseline. Its prompt
+contains Habitat's true target distance and angle, so it does not yet represent
+instruction-only VLN and cannot be transferred directly to the real robot. A
+later experiment must remove or replace this privileged simulator state.
+
+The pipeline can be checked now, without MP3D and without loading Qwen:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py --self-test
+```
+
+After the MP3D scenes are available, first collect a small R2R Oracle dataset:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/collect_oracle_training_data.py \
+  --dataset-split train \
+  --num-episodes 100 \
+  --max-steps 500
+```
+
+The collector creates a timestamped directory under
+`habitat_vln/outputs/oracle_training_data/`. It contains:
+
+- `manifest.jsonl`: samples accepted for training.
+- `episodes.csv`: success and inclusion status for every attempted episode.
+- `images/`: the RGB observation saved before each Oracle action.
+
+Failed or truncated Oracle episodes remain visible in `episodes.csv` but are
+excluded from `manifest.jsonl` by default. Validate the generated data before
+loading the model:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py \
+  --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
+  --dry-run
+```
+
+Install the one additional training dependency only when a real QLoRA run is
+ready:
+
+```bash
+conda run -n habitat_vlm python -m pip install \
+  -r habitat_vln/requirements-training.txt
+```
+
+Start with a deliberately small overfitting run on the RTX 4060 8GB GPU:
+
+```bash
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py \
+  --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
+  --max-samples 100 \
+  --validation-ratio 0.1 \
+  --epochs 1 \
+  --batch-size 1 \
+  --gradient-accumulation-steps 8
+```
+
+The final adapter is saved under
+`habitat_vln/outputs/qwen_qlora/final_adapter/`. Evaluate it by keeping the base
+model unchanged and adding `--adapter-path`:
+
+```bash
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --dataset-split val_seen \
+  --adapter-path habitat_vln/outputs/qwen_qlora/final_adapter \
+  --load-in-4bit \
+  --num-episodes 1 \
+  --max-steps 80 \
+  --width 224 \
+  --height 224
+```
+
+## NaVIDA Core Reproduction
+
+The NaVIDA path extends the single-step Oracle baseline with the paper's two
+central ideas:
+
+- Hierarchical Probabilistic Action Chunking (HPAC) converts atomic Habitat
+  actions into variable-length chunks. The defaults match the paper:
+  `merge_probability=0.7` and `max_level2_chunks=3`.
+- Inverse Dynamics Supervision (IDS) pairs the RGB image before a chunk with the
+  RGB image after it and asks Qwen to recover the intervening action chunk.
+
+The collector now records `next_image` for every Oracle action. Existing
+single-step manifests remain valid because this is an optional extra field.
+Collect a deliberately small Habitat trajectory first:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/collect_oracle_training_data.py \
+  --task-config benchmark/nav/pointnav/pointnav_hm3d.yaml \
+  --dataset-path 'data/datasets/pointnav/hm3d_smoke/v1/{split}/{split}.json.gz' \
+  --dataset-split val \
+  --scenes-dir data/scene_datasets \
+  --instruction 'Navigate to the target location and stop when you reach it.' \
+  --num-episodes 1 \
+  --max-steps 80
+```
+
+Convert the timestamped Oracle manifest into paired VLN and IDS records:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/build_navida_training_data.py \
+  --source-manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl
+```
+
+The converter writes `navida/manifest.jsonl`, `navida/episodes.csv`, and
+`navida/summary.json` beside the source manifest. Validate the full mixed-task
+schema without loading Qwen:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/train_navida_qlora.py \
+  --manifest habitat_vln/outputs/oracle_training_data/collect_*/navida/manifest.jsonl \
+  --validation-ratio 0 \
+  --dry-run
+```
+
+When multiple successful episodes are available, start a small QLoRA run by
+removing `--dry-run` and using a nonzero episode-level validation ratio. The
+NaVIDA trainer freezes visual parameters and jointly learns the same JSON action
+grammar from instruction-conditioned VLN samples and two-frame IDS samples.
+
+Score generated action chunks separately for VLN and IDS:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/evaluate_navida_outputs.py \
+  --manifest path/to/navida/manifest.jsonl \
+  --adapter-path path/to/final_adapter \
+  --output-dir path/to/offline_eval \
+  --samples-per-task 10
+```
+
+Run the trained adapter as a chunked Habitat controller:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --task-config benchmark/nav/pointnav/pointnav_hm3d.yaml \
+  --dataset-path 'data/datasets/pointnav/hm3d_smoke/v1/{split}/{split}.json.gz' \
+  --dataset-split val \
+  --scenes-dir data/scene_datasets \
+  --instruction 'Navigate to the target location and stop when you reach it.' \
+  --qwen-role controller \
+  --navida-chunk-policy \
+  --navida-max-executed-actions 3 \
+  --adapter-path path/to/final_adapter \
+  --load-in-4bit
+```
+
+`--force-stop-within-success-radius` is an optional privileged PointNav safety
+guard. Results using it must be reported separately from the pure NaVIDA policy.
+
+## HM3D NaVIDA Engineering Pipeline
+
+Use `hm3d_navida_pipeline.py` to run the HM3D-only workflow in explicit stages.
+The default small protocol uses two local HM3D example scenes for training and
+one scene-disjoint example scene for validation. It is an engineering protocol,
+not an R2R/RxR benchmark. No stage downloads HM3D automatically.
+
+All commands run from the repository root in the `habitat_vlm` environment. Use
+the same workspace for every stage:
+
+```bash
+WORKSPACE=habitat_vln/outputs/hm3d_navida_system
+
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" check
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" prepare
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" collect
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" build --max-samples 100
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" train --epochs 3
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" offline-eval --samples-per-task 20
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" closed-loop --num-episodes 2 \
+  --max-executed-actions 3
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" report
+```
+
+The generated PointNav episodes store a small set of truthful engineering
+instructions. VLN samples also include relative target distance and bearing in
+the prompt because an arbitrary PointNav coordinate is not observable from RGB
+or a generic instruction alone. IDS samples remain image-pair-only. The pipeline
+records current artifact paths in `pipeline_state.json`, uses timestamped build
+and training directories, and keeps pure versus privileged-guarded closed-loop
+results separate.
+
+### Scaling episodes and state-action coverage
+
+Before a longer QLoRA run, expand successful Oracle trajectories and measure
+whether the new data covers useful navigation states. The following small-scale
+profile uses the three local HM3D example scenes: two train scenes, one
+scene-disjoint validation scene, 60 successful train episodes, and 600 mixed
+VLN/IDS samples.
+
+```bash
+WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_60ep
+
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" prepare \
+  --train-scene-count 2 --val-scene-count 1 \
+  --train-episodes 60 --val-episodes 15 \
+  --dataset-label hm3d_example_scale_60ep_v1
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" collect --num-episodes 60 --max-steps 80
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" coverage --data oracle \
+  --minimum-cell-count 20
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" build --max-samples 600 \
+  --sample-strategy coverage-balanced
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" coverage --data mixed \
+  --minimum-cell-count 5
+```
+
+`coverage-balanced` keeps one terminal chunk per episode, then favors rare
+target-bearing, target-distance, and Oracle-first-action combinations. Coverage
+artifacts are written as JSON, CSV, and Markdown under `coverage/`. The report
+contains both the complete nominal grid and a 20-cell core control grid for
+left/right/ahead movement and stopping.
+
+To add scenes without downloading the complete HM3D train split, use the
+official Habitat-Sim downloader for the v0.2 minival Habitat assets and configs:
+
+```bash
+conda activate habitat_vlm
+python -m habitat_sim.utils.datasets_download \
+  --uids hm3d_minival_habitat_v0.2 hm3d_minival_configs_v0.2 \
+  --data-path data/ --no-replace \
+  --username YOUR_HM3D_USERNAME --password YOUR_HM3D_PASSWORD
+```
+
+These minival sources require HM3D/Matterport authentication. Run the command
+yourself in a private local terminal; do not paste credentials into project
+files, chat, or saved scripts. The current Habitat-Sim downloader forwards the
+credentials to its download process, so avoid shared machines and clear shell
+history afterward. Semantic annotations are not required by this RGB/depth
+navigation pipeline.
+
+### 13-scene coverage-oriented protocol
+
+With the three example scenes plus ten minival scenes installed, use ten
+scene-disjoint training environments and three validation environments. The
+coverage sampler cycles evenly through standard, long-route, multi-turn,
+low-clearance, and reorientation episodes. Low clearance is a navmesh geometry
+proxy for narrow areas, not a semantic room or corridor annotation.
+
+```bash
+WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_300ep_20260713
+
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" prepare \
+  --train-scene-count 10 --val-scene-count 3 \
+  --train-episodes 300 --val-episodes 60 \
+  --min-distance 2 --max-distance 15 \
+  --sampling-profile coverage --long-distance 8 \
+  --min-route-turns 2 --turn-threshold-deg 30 \
+  --clearance-threshold 0.65 --min-low-clearance-fraction 0.7 \
+  --dataset-label hm3d_13scene_coverage_300ep_v1
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" collect --num-episodes 300 --max-steps 180
+conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+  --workspace "$WORKSPACE" coverage --data oracle --minimum-cell-count 50
+```
+
+Every generated dataset embeds the following HM3D citation in its metadata:
+
+```bibtex
+@inproceedings{ramakrishnan2021hm3d,
+  title={Habitat-Matterport 3D Dataset ({HM}3D): 1000 Large-scale 3D Environments for Embodied {AI}},
+  author={Santhosh Kumar Ramakrishnan and Aaron Gokaslan and Erik Wijmans and Oleksandr Maksymets and Alexander Clegg and John M Turner and Eric Undersander and Wojciech Galuba and Andrew Westbury and Angel X Chang and Manolis Savva and Yili Zhao and Dhruv Batra},
+  booktitle={Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+  year={2021},
+  url={https://arxiv.org/abs/2109.08238}
+}
+```

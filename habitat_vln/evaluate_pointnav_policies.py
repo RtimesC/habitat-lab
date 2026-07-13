@@ -423,6 +423,10 @@ def parse_args():
         default=["geometric", "qwen_advisor", "oracle"],
     )
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
+    parser.add_argument(
+        "--adapter-path",
+        help="Optional trained LoRA adapter directory to load on top of --model-id.",
+    )
     parser.add_argument("--device-map", default="auto")
     parser.add_argument("--torch-dtype", default="auto")
     parser.add_argument("--max-new-tokens", type=int, default=16)
@@ -468,6 +472,7 @@ def main():
                     },
                     load_in_4bit=args.load_in_4bit,
                     bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
+                    adapter_path=args.adapter_path,
                 )
             else:
                 policy = None

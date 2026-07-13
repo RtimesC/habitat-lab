@@ -1,0 +1,2 @@
+# Extra packages needed only for QLoRA fine-tuning.
+peft>=0.14,<1
