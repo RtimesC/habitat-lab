@@ -4,6 +4,8 @@ import glob
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime
 
 import cv2
@@ -17,11 +19,21 @@ from habitat.utils.geometry_utils import quaternion_rotate_vector
 try:
     from .navida_policy import NaVIDAChunkPolicy
     from .prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
-    from .vlm_policy import DEFAULT_MODEL_ID, MockVLMPolicy, QwenVLMPolicy
+    from .vlm_policy import (
+        DEFAULT_MODEL_ID,
+        MockVLMPolicy,
+        PolicyOutput,
+        QwenVLMPolicy,
+    )
 except ImportError:
     from navida_policy import NaVIDAChunkPolicy
     from prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
-    from vlm_policy import DEFAULT_MODEL_ID, MockVLMPolicy, QwenVLMPolicy
+    from vlm_policy import (
+        DEFAULT_MODEL_ID,
+        MockVLMPolicy,
+        PolicyOutput,
+        QwenVLMPolicy,
+    )
 
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,6 +53,16 @@ TRAJECTORY_FIELDS = [
     "scene_id",
     "instruction",
     "step",
+    "frequency_mode",
+    "target_vision_hz",
+    "target_inference_hz",
+    "logical_time_sec",
+    "wall_time_sec",
+    "inference_ran",
+    "inference_completed",
+    "inference_duration_sec",
+    "decision_age_steps",
+    "decision_age_sec",
     "action",
     "valid_action",
     "raw_vlm_output",
@@ -122,18 +144,36 @@ def rgb_to_bgr(rgb):
 def draw_status(bgr, step, action, valid_action, collision):
     color = (255, 255, 255) if valid_action else (0, 165, 255)
     lines = [
-        f"step={step:03d} action={action} valid={valid_action}",
-        f"collision={collision}",
+        f"step={step:03d}",
+        f"action={action}",
+        f"valid={valid_action} collision={collision}",
     ]
+    height, width = bgr.shape[:2]
+    font_scale = min(0.65, max(0.38, width / 900.0))
+    thickness = 2 if width >= 480 else 1
+    padding = max(6, width // 100)
+    text_height = cv2.getTextSize(
+        "Ag",
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        thickness,
+    )[0][1]
+    line_height = text_height + max(7, text_height // 2)
+    overlay_height = min(height, padding * 2 + line_height * len(lines))
+    status_area = bgr[:overlay_height, :].copy()
+    black = np.zeros_like(status_area)
+    bgr[:overlay_height, :] = cv2.addWeighted(status_area, 0.35, black, 0.65, 0.0)
+
     for idx, line in enumerate(lines):
         cv2.putText(
             bgr,
             line,
-            (10, 28 + idx * 28),
+            (padding, padding + text_height + idx * line_height),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
+            font_scale,
             color,
-            2,
+            thickness,
+            cv2.LINE_AA,
         )
 
 
@@ -437,6 +477,114 @@ def agent_values_from_state(state):
     }
 
 
+def resolve_frequency_mode(frequency_mode, qwen_role):
+    """Resolve auto timing from the existing layered/direct-control split."""
+    if frequency_mode == "auto":
+        return "layered" if qwen_role == "advisor" else "joint"
+    return frequency_mode
+
+
+def active_frequencies(args):
+    """Return the visual/control tick rate and model refresh rate in Hz."""
+    if args.frequency_mode == "joint":
+        return args.joint_hz, args.joint_hz
+    return args.vision_hz, args.inference_hz
+
+
+def validate_frequencies(args):
+    """Reject invalid or incompatible frequency schedules."""
+    values = {
+        "--vision-hz": args.vision_hz,
+        "--inference-hz": args.inference_hz,
+        "--joint-hz": args.joint_hz,
+    }
+    for name, value in values.items():
+        if value <= 0.0:
+            raise ValueError(f"{name} must be greater than zero")
+    if args.frequency_mode == "layered" and args.inference_hz > args.vision_hz:
+        raise ValueError("--inference-hz cannot exceed --vision-hz in layered mode")
+    if args.frequency_mode == "layered" and args.qwen_role != "advisor":
+        raise ValueError(
+            "layered frequency mode requires --qwen-role advisor; "
+            "use joint mode when the model directly controls navigation"
+        )
+
+
+def inference_is_due(logical_time_sec, next_inference_time_sec):
+    """Return true when logical simulator time reaches the next model update."""
+    return logical_time_sec + 1e-9 >= next_inference_time_sec
+
+
+def advance_inference_time(next_inference_time_sec, inference_hz, logical_time_sec):
+    """Advance the inference deadline beyond the current logical time."""
+    period_sec = 1.0 / inference_hz
+    while next_inference_time_sec <= logical_time_sec + 1e-9:
+        next_inference_time_sec += period_sec
+    return next_inference_time_sec
+
+
+def limit_loop_rate(step_start_time, target_hz, enabled=True):
+    """Prevent one visual/control iteration from running faster than target_hz."""
+    if not enabled:
+        return
+    remaining_sec = (1.0 / target_hz) - (time.perf_counter() - step_start_time)
+    if remaining_sec > 0.0:
+        time.sleep(remaining_sec)
+
+
+def timed_policy_predict(policy, rgb, instruction, step, navigation_context):
+    """Run one policy inference and return its output plus wall-clock duration."""
+    start_time = time.perf_counter()
+    output = policy.predict(
+        rgb,
+        instruction,
+        step=step,
+        navigation_context=navigation_context,
+    )
+    return output, time.perf_counter() - start_time
+
+
+class BackgroundPolicyInference:
+    """Keep layered visual/control ticks running while Qwen is generating."""
+
+    def __init__(self, policy):
+        self.policy = policy
+        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.future = None
+        self.source_step = None
+
+    def submit(self, rgb, instruction, step, navigation_context):
+        """Submit one inference only when the previous request has finished."""
+        if self.future is not None:
+            return False
+        self.source_step = step
+        self.future = self.executor.submit(
+            timed_policy_predict,
+            self.policy,
+            np.asarray(rgb).copy(),
+            instruction,
+            step,
+            dict(navigation_context),
+        )
+        return True
+
+    def collect_if_ready(self):
+        """Return a completed output without blocking the visual loop."""
+        if self.future is None or not self.future.done():
+            return None
+        output, duration_sec = self.future.result()
+        source_step = self.source_step
+        self.future = None
+        self.source_step = None
+        return output, duration_sec, source_step
+
+    def close(self):
+        """Wait for an outstanding request so model errors are not hidden."""
+        self.executor.shutdown(wait=True)
+        if self.future is not None:
+            self.future.result()
+
+
 def write_video(frame_paths, video_path, fps):
     if not frame_paths:
         return False
@@ -467,6 +615,8 @@ def run_navigation(env, policy, args):
     trajectory_path = os.path.join(run_dir, "trajectory.csv")
     depth_config = depth_sensor_config(env)
     goal_success_distance = success_distance(env)
+    vision_hz, inference_hz = active_frequencies(args)
+    video_fps = args.video_fps if args.video_fps is not None else vision_hz
 
     start_time = time.perf_counter()
     total_steps = 0
@@ -495,14 +645,42 @@ def run_navigation(env, policy, args):
             previous_collision = False
             previous_goal_distance = None
             no_progress_steps = 0
+            use_background_inference = (
+                args.frequency_mode == "layered" and not args.no_rate_limit
+            )
+            background_inference = (
+                BackgroundPolicyInference(policy)
+                if use_background_inference
+                else None
+            )
+            last_policy_output = (
+                PolicyOutput(
+                    action=args.advisor_fallback,
+                    raw_text='{"scheduler_fallback":"waiting_for_first_inference"}',
+                    is_valid=False,
+                )
+                if use_background_inference
+                else None
+            )
+            last_inference_step = None
+            next_inference_time_sec = 0.0
+            episode_start_time = time.perf_counter()
 
             print(
                 f"episode={episode_index:03d} "
                 f"id={env.current_episode.episode_id} "
                 f"instruction={instruction!r}"
             )
+            print(
+                f"frequency_mode={args.frequency_mode} "
+                f"vision_hz={vision_hz:g} inference_hz={inference_hz:g} "
+                f"video_fps={video_fps:g} rate_limit={not args.no_rate_limit}"
+            )
 
             for step in range(args.max_steps):
+                step_start_time = time.perf_counter()
+                wall_time_sec = step_start_time - episode_start_time
+                logical_time_sec = step / vision_hz
                 rgb = obs["rgb"]
                 metrics_before_action = env.get_metrics()
                 agent_state = env.sim.get_agent_state()
@@ -564,11 +742,60 @@ def run_navigation(env, policy, args):
                     "depth_min": depth_min,
                     "depth_mean": depth_mean,
                 }
-                policy_output = policy.predict(
-                    rgb,
-                    instruction,
-                    step=step,
-                    navigation_context=navigation_context,
+                inference_ran = inference_is_due(
+                    logical_time_sec,
+                    next_inference_time_sec,
+                )
+                inference_completed = False
+                inference_duration_sec = 0.0
+                if background_inference is not None:
+                    completed = background_inference.collect_if_ready()
+                    if completed is not None:
+                        (
+                            last_policy_output,
+                            inference_duration_sec,
+                            last_inference_step,
+                        ) = completed
+                        inference_completed = True
+                    if inference_ran:
+                        inference_ran = background_inference.submit(
+                            rgb,
+                            instruction,
+                            step,
+                            navigation_context,
+                        )
+                        if inference_ran:
+                            next_inference_time_sec = advance_inference_time(
+                                next_inference_time_sec,
+                                inference_hz,
+                                logical_time_sec,
+                            )
+                elif inference_ran:
+                    inference_start_time = time.perf_counter()
+                    last_policy_output = policy.predict(
+                        rgb,
+                        instruction,
+                        step=step,
+                        navigation_context=navigation_context,
+                    )
+                    inference_completed = True
+                    inference_duration_sec = (
+                        time.perf_counter() - inference_start_time
+                    )
+                    last_inference_step = step
+                    next_inference_time_sec = advance_inference_time(
+                        next_inference_time_sec,
+                        inference_hz,
+                        logical_time_sec,
+                    )
+                policy_output = replace(last_policy_output)
+                decision_age_steps = (
+                    "" if last_inference_step is None else step - last_inference_step
+                )
+                decision_age_sec = (
+                    ""
+                    if decision_age_steps == ""
+                    else decision_age_steps / vision_hz
                 )
                 vlm_action = policy_output.action
                 if args.qwen_role == "advisor":
@@ -707,6 +934,16 @@ def run_navigation(env, policy, args):
 
                 row = {
                     "step": step,
+                    "frequency_mode": args.frequency_mode,
+                    "target_vision_hz": vision_hz,
+                    "target_inference_hz": inference_hz,
+                    "logical_time_sec": logical_time_sec,
+                    "wall_time_sec": wall_time_sec,
+                    "inference_ran": inference_ran,
+                    "inference_completed": inference_completed,
+                    "inference_duration_sec": inference_duration_sec,
+                    "decision_age_steps": decision_age_steps,
+                    "decision_age_sec": decision_age_sec,
                     "action": action_name,
                     "valid_action": policy_output.is_valid,
                     "raw_vlm_output": policy_output.raw_text,
@@ -736,6 +973,8 @@ def run_navigation(env, policy, args):
 
                 print(
                     f"episode={episode_index:03d} step={step:03d} "
+                    f"inference={'started' if inference_ran else 'idle'} "
+                    f"completed={inference_completed} "
                     f"vlm={vlm_action} action={action_name} "
                     f"valid={policy_output.is_valid} "
                     f"collision={collision} "
@@ -767,7 +1006,16 @@ def run_navigation(env, policy, args):
                 else:
                     no_progress_steps += 1
 
-            video_written = write_video(frame_paths, episode_video_path, args.video_fps)
+                limit_loop_rate(
+                    step_start_time,
+                    vision_hz,
+                    enabled=not args.no_rate_limit,
+                )
+
+            if background_inference is not None:
+                background_inference.close()
+
+            video_written = write_video(frame_paths, episode_video_path, video_fps)
             final_metrics = env.get_metrics()
             total_steps += len(frame_paths)
             total_collisions += collision_count
@@ -849,7 +1097,46 @@ def parse_args():
         help="Compute dtype for bitsandbytes 4-bit quantization.",
     )
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--video-fps", type=int, default=10)
+    parser.add_argument(
+        "--video-fps",
+        type=float,
+        help="Saved-video playback rate. Defaults to the active visual frequency.",
+    )
+    parser.add_argument(
+        "--frequency-mode",
+        choices=["auto", "layered", "joint"],
+        default="auto",
+        help=(
+            "auto uses layered timing for advisor mode and joint timing for "
+            "controller mode."
+        ),
+    )
+    parser.add_argument(
+        "--vision-hz",
+        type=float,
+        default=5.0,
+        help="Layered mode visual/control update frequency.",
+    )
+    parser.add_argument(
+        "--inference-hz",
+        type=float,
+        default=0.5,
+        help="Layered mode Qwen inference frequency.",
+    )
+    parser.add_argument(
+        "--joint-hz",
+        type=float,
+        default=1.0,
+        help="Joint model visual-plus-inference frequency.",
+    )
+    parser.add_argument(
+        "--no-rate-limit",
+        action="store_true",
+        help=(
+            "Run without wall-clock sleeps while preserving the same logical "
+            "inference schedule. Useful only for fast tests."
+        ),
+    )
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--hfov", type=int, default=90)
@@ -927,12 +1214,21 @@ def parse_args():
         help="Use a NaVIDA adapter to generate and execute structured action chunks.",
     )
     parser.add_argument("--navida-max-history-frames", type=int, default=8)
-    parser.add_argument("--navida-max-executed-actions", type=int, default=3)
+    parser.add_argument(
+        "--navida-max-executed-actions",
+        type=int,
+        default=1,
+        help=(
+            "Actions kept from each NaVIDA chunk. Joint 1 Hz replanning requires 1."
+        ),
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    args.frequency_mode = resolve_frequency_mode(args.frequency_mode, args.qwen_role)
+    validate_frequencies(args)
     os.makedirs(args.output_dir, exist_ok=True)
     args.execution_actions = (
         set(EXPLORATION_ACTIONS) if args.no_stop else set(VALID_ACTIONS)
@@ -960,6 +1256,11 @@ def main():
             raise ValueError("--navida-chunk-policy requires --qwen-role controller")
         if not args.adapter_path:
             raise ValueError("--navida-chunk-policy requires --adapter-path")
+        if args.navida_max_executed_actions != 1:
+            raise ValueError(
+                "joint NaVIDA timing requires --navida-max-executed-actions 1 "
+                "so the model replans from the latest image at every 1 Hz tick"
+            )
         policy = NaVIDAChunkPolicy(
             model_id=args.model_id,
             adapter_path=args.adapter_path,
