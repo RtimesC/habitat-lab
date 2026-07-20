@@ -423,6 +423,10 @@ def command_closed_loop(args):
         args.scenes_dir,
         "--qwen-role",
         "controller",
+        "--frequency-mode",
+        "joint",
+        "--joint-hz",
+        args.joint_hz,
         "--navida-chunk-policy",
         "--navida-max-executed-actions",
         args.max_executed_actions,
@@ -452,6 +456,9 @@ def command_closed_loop(args):
         run_dir=str(created[0]),
         trajectory=str(created[0] / "trajectory.csv"),
         privileged_guard=args.guarded,
+        frequency_mode="joint",
+        joint_hz=args.joint_hz,
+        max_executed_actions=args.max_executed_actions,
     )
 
 
@@ -599,7 +606,8 @@ def parse_args():
     closed = subparsers.add_parser("closed-loop")
     closed.add_argument("--num-episodes", type=int, default=2)
     closed.add_argument("--max-steps", type=int, default=80)
-    closed.add_argument("--max-executed-actions", type=int, default=3)
+    closed.add_argument("--joint-hz", type=float, default=1.0)
+    closed.add_argument("--max-executed-actions", type=int, default=1)
     closed.add_argument("--guarded", action="store_true")
     subparsers.add_parser("report")
     return parser.parse_args()

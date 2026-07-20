@@ -162,6 +162,64 @@ default, which overrides repeated same-direction turns with `move_forward` only
 when the target is roughly ahead and center depth is safe.
 Pass `--disable-anti-stuck` to inspect the raw model policy.
 
+## Simulation frequencies
+
+The navigation runner has two timing modes:
+
+- `layered`: fresh RGB/depth and geometric control at 5 Hz, with a new Qwen
+  advisory inference submitted at 0.5 Hz in a background worker. The latest
+  completed Qwen advice is reused between model updates while the controller
+  continues to use the newest observation.
+- `joint`: the model receives the latest visual observation and replans at 1 Hz.
+  This is the default for direct controller and NaVIDA runs.
+
+`--frequency-mode auto` is the default. It selects `layered` for
+`--qwen-role advisor` and `joint` for `--qwen-role controller`. The explicit
+commands are:
+
+```bash
+# Layered visual/controller + slower Qwen advisor.
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  ... \
+  --qwen-role advisor \
+  --frequency-mode layered \
+  --vision-hz 5 \
+  --inference-hz 0.5
+
+# Joint visual-plus-inference model loop.
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  ... \
+  --qwen-role controller \
+  --frequency-mode joint \
+  --joint-hz 1
+```
+
+The runner sleeps so a loop never runs faster than its requested wall-clock
+rate. A model inference that itself takes longer than the requested period will
+make the measured rate slower; it will never skip safety checks to catch up.
+Use `--no-rate-limit` only for fast tests: the same inference schedule is then
+preserved in logical simulator time without wall-clock sleeps.
+Saved video defaults to the active visual frequency (5 FPS in layered mode and
+1 FPS in joint mode); `--video-fps` can override playback speed only.
+
+For videos intended for visual inspection, use the native 4:3 viewing preset:
+
+```bash
+--width 640 --height 480 --hfov 90
+```
+
+Avoid `224x224` except for quick plumbing checks: it reduces scene detail and
+leaves too little horizontal space for status text. Video duration is determined
+by `max_steps / active_visual_hz`. For approximately 10 seconds, use
+`--max-steps 50` in layered 5 Hz mode or `--max-steps 10` in joint 1 Hz mode.
+The status overlay uses three short lines, resolution-aware text sizing, and a
+dark translucent background so actions are not clipped on small frames.
+
+`trajectory.csv` records `frequency_mode`, target frequencies, logical and
+wall time, whether inference started or completed on the step, inference
+duration, and cached decision age. Joint NaVIDA runs keep one action from each
+generated chunk, so every 1 Hz tick replans from the latest image.
+
 ## Outputs
 
 Runtime artifacts go under `habitat_vln/outputs/`, which is ignored by git.
@@ -317,7 +375,7 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
   --instruction 'Navigate to the target location and stop when you reach it.' \
   --qwen-role controller \
   --navida-chunk-policy \
-  --navida-max-executed-actions 3 \
+  --navida-max-executed-actions 1 \
   --adapter-path path/to/final_adapter \
   --load-in-4bit
 ```
