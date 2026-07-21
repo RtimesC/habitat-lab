@@ -1,7 +1,10 @@
 """Closed-loop Habitat navigation execution independent from CLI parsing."""
 
+from dataclasses import replace
+import json
 import os
 import time
+from typing import Any
 
 import cv2
 
@@ -94,12 +97,55 @@ def agent_values_from_state(state):
     }
 
 
-def run_navigation(env, policy, args, controller=None):
+def run_navigation(
+    env: Any,
+    policy: Any,
+    args: Any,
+    controller: Any = None,
+) -> str:
+    """Run navigation and close an optional policy resource exactly once."""
+    try:
+        trajectory_path = _execute_navigation(
+            env,
+            policy,
+            args,
+            controller=controller,
+        )
+    except BaseException:
+        try:
+            _close_policy(policy)
+        except BaseException as close_error:
+            print(f"warning: policy close failed after run error: {close_error}")
+        raise
+    _close_policy(policy)
+    return trajectory_path
+
+
+def _close_policy(policy: Any) -> None:
+    """Call the optional policy close hook without requiring it in the protocol."""
+    close_policy = getattr(policy, "close", None)
+    if callable(close_policy):
+        close_policy()
+
+
+def _execute_navigation(
+    env: Any,
+    policy: Any,
+    args: Any,
+    controller: Any = None,
+) -> str:
     """Run closed-loop navigation and return the saved trajectory path."""
     run_dir, frame_dir = prepare_run_dir(args.output_dir)
     trajectory_path = os.path.join(run_dir, "trajectory.csv")
     state_builder = NavigationStateBuilder(env)
-    controller = controller or NavigationController(ControllerConfig.from_args(args))
+    policy_protocol = getattr(policy, "policy_protocol", None)
+    paper_pure = policy_protocol == "paper_pure"
+    if paper_pure and args.frequency_mode != "joint":
+        raise ValueError("paper_pure policies require joint frequency mode")
+    if not paper_pure:
+        controller = controller or NavigationController(
+            ControllerConfig.from_args(args)
+        )
     vision_hz, inference_hz = active_frequencies(args)
     video_fps = args.video_fps if args.video_fps is not None else vision_hz
 
@@ -111,6 +157,9 @@ def run_navigation(env, policy, args, controller=None):
     with TrajectoryRecorder(trajectory_path) as recorder:
         for episode_index in range(args.num_episodes):
             obs = env.reset()
+            start_episode = getattr(policy, "start_episode", None)
+            if callable(start_episode):
+                start_episode(str(env.current_episode.episode_id))
             episode_fallback = (
                 episode_instruction_text(env.current_episode) or args.goal
             )
@@ -127,13 +176,16 @@ def run_navigation(env, policy, args, controller=None):
             frame_paths = []
             collision_count = 0
             stopped = False
+            episode_failed = False
             previous_action = "none"
             previous_action_count = 0
             previous_collision = False
             previous_goal_distance = None
             no_progress_steps = 0
             use_background_inference = (
-                args.frequency_mode == "layered" and not args.no_rate_limit
+                not paper_pure
+                and args.frequency_mode == "layered"
+                and not args.no_rate_limit
             )
             background_inference = (
                 BackgroundPolicyInference(policy)
@@ -230,36 +282,73 @@ def run_navigation(env, policy, args, controller=None):
                     if decision_age_steps == ""
                     else decision_age_steps / vision_hz
                 )
-                control_decision = controller.decide(
-                    last_policy_output,
-                    navigation_state,
-                    step=step,
-                    previous_action=previous_action,
-                    previous_action_count=previous_action_count,
-                    previous_collision=previous_collision,
-                    no_progress_steps=no_progress_steps,
-                )
-                for message in control_decision.messages:
-                    print(message)
-                vlm_action = control_decision.vlm_action
-                controller_action = control_decision.controller_action
-                action_name = control_decision.action
-                policy_output = control_decision.policy_output
-                if action_name != vlm_action and hasattr(policy, "clear_action_queue"):
-                    policy.clear_action_queue()
+                if paper_pure:
+                    policy_output = last_policy_output
+                    vlm_action = policy_output.action
+                    controller_action = policy_output.action
+                    action_name = policy_output.action
+                else:
+                    control_decision = controller.decide(
+                        last_policy_output,
+                        navigation_state,
+                        step=step,
+                        previous_action=previous_action,
+                        previous_action_count=previous_action_count,
+                        previous_collision=previous_collision,
+                        no_progress_steps=no_progress_steps,
+                    )
+                    for message in control_decision.messages:
+                        print(message)
+                    vlm_action = control_decision.vlm_action
+                    controller_action = control_decision.controller_action
+                    action_name = control_decision.action
+                    policy_output = control_decision.policy_output
+                    if action_name != vlm_action and hasattr(
+                        policy, "clear_action_queue"
+                    ):
+                        policy.clear_action_queue()
 
-                obs = step_navigation_action(env, action_name)
-                collision = bool(env.sim.previous_step_collided)
-                collision_count += int(collision)
-                stopped = action_name == "stop"
-                metrics = env.get_metrics()
-                next_distance = optional_float(metrics.get("distance_to_goal", ""))
-                action_distance_delta = (
-                    None
-                    if navigation_state.distance_to_goal is None
-                    or next_distance is None
-                    else next_distance - navigation_state.distance_to_goal
+                terminate_without_step = paper_pure and (
+                    not policy_output.is_valid or action_name is None
                 )
+                policy_metadata = dict(policy_output.metadata)
+                if terminate_without_step:
+                    action_name = None
+                    termination_reason = policy_output.termination_reason
+                    metadata_reason = policy_metadata.get("termination_reason")
+                    if (
+                        not isinstance(termination_reason, str)
+                        or not termination_reason
+                    ):
+                        termination_reason = (
+                            metadata_reason
+                            if isinstance(metadata_reason, str) and metadata_reason
+                            else "invalid_model_output"
+                        )
+                    policy_output = replace(
+                        policy_output,
+                        action=None,
+                        termination_reason=termination_reason,
+                    )
+                    collision = False
+                    metrics = metrics_before_action
+                    action_distance_delta = None
+                    episode_failed = True
+                else:
+                    obs = step_navigation_action(env, action_name)
+                    collision = bool(env.sim.previous_step_collided)
+                    collision_count += int(collision)
+                    metrics = env.get_metrics()
+                    next_distance = optional_float(
+                        metrics.get("distance_to_goal", "")
+                    )
+                    action_distance_delta = (
+                        None
+                        if navigation_state.distance_to_goal is None
+                        or next_distance is None
+                        else next_distance - navigation_state.distance_to_goal
+                    )
+                stopped = action_name == "stop"
 
                 bgr = rgb_to_bgr(rgb)
                 draw_status(
@@ -279,6 +368,7 @@ def run_navigation(env, policy, args, controller=None):
                 row = {
                     "step": step,
                     "frequency_mode": args.frequency_mode,
+                    "policy_protocol": policy_protocol or "",
                     "target_vision_hz": vision_hz,
                     "target_inference_hz": inference_hz,
                     "logical_time_sec": logical_time_sec,
@@ -286,11 +376,25 @@ def run_navigation(env, policy, args, controller=None):
                     "inference_ran": inference_ran,
                     "inference_completed": inference_completed,
                     "inference_duration_sec": inference_duration_sec,
+                    "policy_decision_step": policy_metadata.get(
+                        "decision_step", ""
+                    ),
+                    "policy_inferred": policy_metadata.get("inferred", ""),
                     "decision_age_steps": decision_age_steps,
                     "decision_age_sec": decision_age_sec,
                     "action": action_name,
                     "valid_action": policy_output.is_valid,
                     "raw_vlm_output": policy_output.raw_text,
+                    "termination_reason": policy_output.termination_reason or "",
+                    "model_latency_seconds": policy_metadata.get(
+                        "latency_seconds", ""
+                    ),
+                    "policy_metadata": json.dumps(
+                        policy_metadata,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        default=str,
+                    ),
                     "vlm_action": vlm_action,
                     "controller_action": controller_action,
                     "previous_action": previous_action,
@@ -330,7 +434,7 @@ def run_navigation(env, policy, args, controller=None):
                     f"spl={metrics.get('spl', '')}"
                 )
 
-                if stopped or env.episode_over:
+                if terminate_without_step or stopped or env.episode_over:
                     break
 
                 if action_name == previous_action:
@@ -364,13 +468,16 @@ def run_navigation(env, policy, args, controller=None):
                 episode_video_path,
                 video_fps,
             )
-            final_metrics = env.get_metrics()
+            final_metrics = dict(env.get_metrics())
+            if episode_failed:
+                final_metrics["success"] = 0.0
+                final_metrics["spl"] = 0.0
             total_steps += len(frame_paths)
             total_collisions += collision_count
             episode_summaries.append(final_metrics)
             print(
                 f"episode_summary: episode={episode_index:03d} "
-                f"steps={len(frame_paths)} stopped={stopped} "
+                f"steps={len(frame_paths)} stopped={stopped} failed={episode_failed} "
                 f"collisions={collision_count} "
                 f"success={final_metrics.get('success', '')} "
                 f"spl={final_metrics.get('spl', '')} "
