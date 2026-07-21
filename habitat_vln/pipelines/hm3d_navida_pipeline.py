@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = PROJECT_ROOT / "habitat_vln"
 DEFAULT_WORKSPACE = SCRIPT_DIR / "outputs" / "hm3d_navida_system"
 DEFAULT_SCENE_ROOT = PROJECT_ROOT / "data" / "versioned_data" / "hm3d-0.2"
@@ -161,7 +161,8 @@ def command_prepare(args):
     val_path = args.workspace / "datasets" / "val" / "val.json.gz"
     common = [
         sys.executable,
-        SCRIPT_DIR / "generate_hm3d_pointnav_smoke.py",
+        "-m",
+        "habitat_vln.data.generate_hm3d_pointnav_smoke",
         "--scene-root",
         args.scene_root,
         "--min-distance",
@@ -241,7 +242,8 @@ def command_collect(args):
     run_command(
         [
             sys.executable,
-            SCRIPT_DIR / "collect_oracle_training_data.py",
+            "-m",
+            "habitat_vln.data.collect_oracle_training_data",
             "--task-config",
             args.task_config,
             "--dataset-path",
@@ -293,7 +295,8 @@ def command_coverage(args):
     run_command(
         [
             sys.executable,
-            SCRIPT_DIR / "analyze_navida_coverage.py",
+            "-m",
+            "habitat_vln.data.analyze_navida_coverage",
             "--manifest",
             manifest,
             "--output-dir",
@@ -320,7 +323,8 @@ def command_build(args):
     run_command(
         [
             sys.executable,
-            SCRIPT_DIR / "build_navida_training_data.py",
+            "-m",
+            "habitat_vln.data.build_navida_training_data",
             "--source-manifest",
             source_manifest,
             "--output-dir",
@@ -348,7 +352,8 @@ def command_train(args):
     output_dir = args.workspace / "training" / f"train_{timestamp()}"
     command = [
         sys.executable,
-        SCRIPT_DIR / "train_navida_qlora.py",
+        "-m",
+        "habitat_vln.training.train_navida_qlora",
         "--manifest",
         manifest,
         "--model-id",
@@ -382,7 +387,8 @@ def command_offline_eval(args):
     run_command(
         [
             sys.executable,
-            SCRIPT_DIR / "evaluate_navida_outputs.py",
+            "-m",
+            "habitat_vln.evaluation.evaluate_navida_outputs",
             "--manifest",
             manifest,
             "--adapter-path",

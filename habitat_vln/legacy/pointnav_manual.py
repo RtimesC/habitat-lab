@@ -1,3 +1,5 @@
+"""Legacy keyboard-controlled PointNav example."""
+
 import habitat
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 import cv2

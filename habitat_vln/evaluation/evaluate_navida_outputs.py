@@ -1,4 +1,4 @@
-"""Generate and score VLN/IDS action chunks from a NaVIDA manifest."""
+"""Generate and score NaVIDA VLN/IDS action chunks offline."""
 
 import argparse
 import csv
@@ -7,12 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-try:
-    from .navida_data import load_manifest, navigation_prompt
-    from .navida_policy import QwenNaVIDAModel
-except ImportError:
-    from navida_data import load_manifest, navigation_prompt
-    from navida_policy import QwenNaVIDAModel
+from ..data.navida_data import load_manifest, navigation_prompt
+from ..policies import QwenNaVIDAModel
 
 
 FIELDS = [

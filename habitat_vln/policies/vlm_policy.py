@@ -6,21 +6,16 @@ import numpy as np
 from PIL import Image
 
 try:
-    from .core import NavigationObservation, PolicyOutput
-    from .prompts import (
-        ADVISORY_ACTIONS,
-        EXPLORATION_ACTIONS,
-        VALID_ACTIONS,
-        build_navigation_prompt,
-    )
+    from ..core import NavigationObservation, PolicyOutput
 except ImportError:
     from core import NavigationObservation, PolicyOutput
-    from prompts import (
-        ADVISORY_ACTIONS,
-        EXPLORATION_ACTIONS,
-        VALID_ACTIONS,
-        build_navigation_prompt,
-    )
+
+from .prompts import (
+    ADVISORY_ACTIONS,
+    EXPLORATION_ACTIONS,
+    VALID_ACTIONS,
+    build_navigation_prompt,
+)
 
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"

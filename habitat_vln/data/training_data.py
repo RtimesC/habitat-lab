@@ -1,4 +1,4 @@
-"""Shared schema and validation helpers for Habitat navigation training data."""
+"""Schema and validation helpers for single-step navigation training data."""
 
 import hashlib
 import json
@@ -6,9 +6,9 @@ from collections import Counter
 from pathlib import Path
 
 try:
-    from .prompts import VALID_ACTIONS, build_navigation_prompt
+    from ..policies.prompts import VALID_ACTIONS, build_navigation_prompt
 except ImportError:
-    from prompts import VALID_ACTIONS, build_navigation_prompt
+    from policies.prompts import VALID_ACTIONS, build_navigation_prompt
 
 
 SCHEMA_VERSION = 1

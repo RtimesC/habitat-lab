@@ -1,3 +1,5 @@
+"""Compare geometric, Qwen-advisor, and Oracle PointNav policies."""
+
 import argparse
 import csv
 import os
@@ -7,32 +9,18 @@ from datetime import datetime
 import numpy as np
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
-try:
-    from .control import action_from_advice, geometric_navigation_action
-    from .core import NavigationObservation
-    from .envs import (
-        ACTION_MAP,
-        NavigationStateBuilder,
-        build_navigation_context,
-        build_env,
-        get_goal_position,
-        optional_float,
-    )
-    from .policies import DEFAULT_MODEL_ID, QwenVLMPolicy
-    from .runtime import instruction_text
-except ImportError:
-    from control import action_from_advice, geometric_navigation_action
-    from core import NavigationObservation
-    from envs import (
-        ACTION_MAP,
-        NavigationStateBuilder,
-        build_navigation_context,
-        build_env,
-        get_goal_position,
-        optional_float,
-    )
-    from policies import DEFAULT_MODEL_ID, QwenVLMPolicy
-    from runtime import instruction_text
+from ..control import action_from_advice, geometric_navigation_action
+from ..core import NavigationObservation
+from ..envs import (
+    ACTION_MAP,
+    NavigationStateBuilder,
+    build_navigation_context,
+    build_env,
+    get_goal_position,
+    optional_float,
+)
+from ..policies import DEFAULT_MODEL_ID, QwenVLMPolicy
+from ..runtime import instruction_text
 
 
 _STATE_API_COMPATIBILITY_EXPORTS = (build_navigation_context,)

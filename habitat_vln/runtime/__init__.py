@@ -1,6 +1,12 @@
 """Reusable helpers for executing and recording navigation runs."""
 
-from .artifacts import draw_status, prepare_run_dir, rgb_to_bgr, write_video
+from .artifacts import (
+    draw_status,
+    prepare_run_dir,
+    rgb_to_bgr,
+    transcode_video_to_h264,
+    write_video,
+)
 from .navigation_runner import (
     agent_values_from_state,
     episode_instruction_text,
@@ -39,6 +45,7 @@ __all__ = [
     "rgb_to_bgr",
     "resolve_frequency_mode",
     "timed_policy_predict",
+    "transcode_video_to_h264",
     "validate_frequencies",
     "run_navigation",
     "write_video",

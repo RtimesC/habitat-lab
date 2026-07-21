@@ -1,3 +1,5 @@
+"""Legacy shortest-path Oracle PointNav example."""
+
 import os
 import csv
 import cv2

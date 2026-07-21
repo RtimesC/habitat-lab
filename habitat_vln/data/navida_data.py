@@ -1,4 +1,4 @@
-"""NaVIDA-style HPAC and mixed VLN/IDS training-data helpers."""
+"""Build and validate NaVIDA-style HPAC plus mixed VLN/IDS records."""
 
 import hashlib
 import json

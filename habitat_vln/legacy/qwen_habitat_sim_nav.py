@@ -1,3 +1,5 @@
+"""Legacy Qwen experiment that drives Habitat-Sim without Habitat-Lab tasks."""
+
 import argparse
 import csv
 import json
@@ -22,7 +24,7 @@ VALID_ACTIONS = {
     "TURN_RIGHT": "turn_right",
 }
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_DIR / "outputs" / "qwen_habitat_sim" / "qwen_navigation.mp4"
 
 TRAJECTORY_FIELDS = [

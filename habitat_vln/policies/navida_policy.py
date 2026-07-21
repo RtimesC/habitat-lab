@@ -8,13 +8,13 @@ import numpy as np
 from PIL import Image
 
 try:
-    from .core import NavigationObservation
-    from .navida_data import navigation_prompt, uniformly_sample_indices
-    from .vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
+    from ..core import NavigationObservation
+    from ..data.navida_data import navigation_prompt, uniformly_sample_indices
 except ImportError:
     from core import NavigationObservation
-    from navida_data import navigation_prompt, uniformly_sample_indices
-    from vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
+    from data.navida_data import navigation_prompt, uniformly_sample_indices
+
+from .vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
 
 
 VALID_ACTIONS = {"move_forward", "turn_left", "turn_right", "stop"}

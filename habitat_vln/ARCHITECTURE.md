@@ -2,7 +2,7 @@
 
 本目录是项目自己的导航应用层，底层继续使用 Habitat-Lab 和
 Habitat-Sim。当前框架的目标是让仿真环境、导航状态、模型策略、确定性控制、
-运行调度和实验产物具有清楚边界，同时保留原有命令。
+运行调度和实验产物具有清楚边界，同时保持主导航命令稳定。
 
 ## Runtime data flow
 
@@ -30,8 +30,8 @@ runtime/navigation_runner.py    closed-loop execution
         +--> runtime/scheduler.py      layered/joint inference timing
 ```
 
-`habitat_vln_nav.py` is the compatibility CLI. It parses arguments, constructs the
-policy, controller, and Habitat environment, then calls `run_navigation()`.
+`habitat_vln_nav.py` is the primary CLI. It parses arguments, constructs the policy,
+controller, and Habitat environment, then calls `run_navigation()`.
 
 ## Module contracts
 
@@ -67,8 +67,8 @@ This package is the stable import surface for:
 - `QwenVLMPolicy`, used as advisor or direct controller;
 - `NaVIDAChunkPolicy`, used for multi-frame action-chunk experiments.
 
-The original `vlm_policy.py` and `navida_policy.py` paths remain available for
-existing scripts.
+The implementations and prompt templates live in `policies/vlm_policy.py`,
+`policies/navida_policy.py`, and `policies/prompts.py`.
 
 ### `control/`
 
@@ -88,7 +88,28 @@ guarded results must be reported separately.
 - `navigation_runner.py` owns the episode and step loops.
 - `recorder.py` owns the stable trajectory schema. The executed-action column is
   `action`.
-- `artifacts.py` owns run directories, frame overlays, and MP4 generation.
+- `artifacts.py` owns run directories, frame overlays, and browser-compatible
+  H.264 MP4 generation through ffmpeg, with an mp4v fallback.
+
+### Offline workflow packages
+
+- `data/` owns dataset checks, HM3D smoke generation, Oracle collection, record
+  schemas, coverage analysis, and NaVIDA sample construction.
+- `training/` owns the single-step Qwen and mixed VLN/IDS NaVIDA QLoRA
+  entrypoints.
+- `evaluation/` owns offline action-chunk scoring and closed-loop PointNav policy
+  comparison.
+- `pipelines/` owns multi-stage orchestration and artifact-path tracking.
+- `legacy/` archives standalone experiments that bypass the current framework.
+
+Offline commands use module entrypoints, for example:
+
+```bash
+conda run -n habitat_vlm python -m habitat_vln.data.check_vln_data --help
+conda run -n habitat_vlm python -m habitat_vln.training.train_navida_qlora --help
+conda run -n habitat_vlm python -m habitat_vln.evaluation.evaluate_navida_outputs --help
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline --help
+```
 
 ## Training and evaluation flow
 
@@ -104,10 +125,11 @@ Oracle collection
     -> report
 ```
 
-`hm3d_navida_pipeline.py` remains the stage orchestrator. HM3D is used for legal
-engineering and smoke validation; R2R/RxR benchmark claims still require MP3D.
+`pipelines/hm3d_navida_pipeline.py` is the stage orchestrator. HM3D is used for
+legal engineering and smoke validation; R2R/RxR benchmark claims still require
+MP3D.
 
-## Compatibility and validation
+## Validation
 
 The standard command remains:
 

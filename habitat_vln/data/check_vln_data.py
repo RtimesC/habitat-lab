@@ -1,3 +1,5 @@
+"""Check whether R2R episode files and referenced MP3D scenes are available."""
+
 import argparse
 import gzip
 import json

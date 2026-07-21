@@ -1,3 +1,6 @@
+"""Prompt templates and action vocabularies shared by navigation policies."""
+
+
 VALID_ACTIONS = {
     "turn_left",
     "turn_right",

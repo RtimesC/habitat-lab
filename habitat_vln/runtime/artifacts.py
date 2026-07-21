@@ -2,6 +2,8 @@
 
 import glob
 import os
+import shutil
+import subprocess
 from datetime import datetime
 
 import cv2
@@ -67,8 +69,48 @@ def draw_status(bgr, step, action, valid_action, collision):
         )
 
 
+def transcode_video_to_h264(source_path, output_path):
+    """Convert one silent video to browser-compatible H.264 with ffmpeg."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        return False, "ffmpeg is not installed"
+
+    command = [
+        ffmpeg,
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        source_path,
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "20",
+        "-vf",
+        "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        output_path,
+    ]
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip() or "ffmpeg exited with an error"
+    return os.path.isfile(output_path), ""
+
+
 def write_video(frame_paths, video_path, fps):
-    """Encode saved frames into an MP4 video."""
+    """Encode frames into H.264 MP4, with an mp4v fallback if needed."""
     if not frame_paths:
         return False
 
@@ -76,13 +118,21 @@ def write_video(frame_paths, video_path, fps):
     if first is None:
         return False
 
+    root, extension = os.path.splitext(video_path)
+    temporary_path = f"{root}.mp4v{extension or '.mp4'}"
+    if os.path.exists(temporary_path):
+        os.remove(temporary_path)
+
     height, width = first.shape[:2]
     writer = cv2.VideoWriter(
-        video_path,
+        temporary_path,
         cv2.VideoWriter_fourcc(*"mp4v"),
         fps,
         (width, height),
     )
+    if not writer.isOpened():
+        writer.release()
+        return False
     try:
         for frame_path in frame_paths:
             frame = cv2.imread(frame_path)
@@ -90,4 +140,14 @@ def write_video(frame_paths, video_path, fps):
                 writer.write(frame)
     finally:
         writer.release()
+
+    converted, error = transcode_video_to_h264(temporary_path, video_path)
+    if converted:
+        os.remove(temporary_path)
+        return True
+
+    if os.path.exists(video_path):
+        os.remove(video_path)
+    os.replace(temporary_path, video_path)
+    print(f"warning: H.264 conversion failed; kept mp4v video: {error}")
     return os.path.exists(video_path)

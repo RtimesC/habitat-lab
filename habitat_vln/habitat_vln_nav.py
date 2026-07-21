@@ -31,12 +31,14 @@ try:
         step_navigation_action,
     )
     from .policies import (
+        ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
+        EXPLORATION_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
         QwenVLMPolicy,
+        VALID_ACTIONS,
     )
-    from .prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
     from .runtime import (
         BackgroundPolicyInference,
         TrajectoryRecorder,
@@ -88,12 +90,14 @@ except ImportError:
         step_navigation_action,
     )
     from policies import (
+        ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
+        EXPLORATION_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
         QwenVLMPolicy,
+        VALID_ACTIONS,
     )
-    from prompts import ADVISORY_ACTIONS, EXPLORATION_ACTIONS, VALID_ACTIONS
     from runtime import (
         BackgroundPolicyInference,
         TrajectoryRecorder,
