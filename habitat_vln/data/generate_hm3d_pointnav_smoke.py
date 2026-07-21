@@ -1,3 +1,5 @@
+"""Generate a small HM3D PointNav dataset for engineering smoke tests."""
+
 import argparse
 from collections import Counter
 import gzip

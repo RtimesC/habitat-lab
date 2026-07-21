@@ -1,3 +1,5 @@
+"""Legacy rule-based PointNav smoke example."""
+
 import os
 import csv
 import cv2

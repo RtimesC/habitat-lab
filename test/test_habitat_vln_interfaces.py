@@ -1,19 +1,19 @@
 import csv
+import shutil
+import subprocess
 import tempfile
 import unittest
 from math import radians
 from pathlib import Path
 from types import SimpleNamespace
 
+import cv2
 import numpy as np
 
 from habitat_vln.core import NavigationObservation, NavigationPolicy, PolicyOutput
 from habitat_vln.envs import ACTION_MAP, NavigationStateBuilder, step_navigation_action
-from habitat_vln.navida_policy import ActionChunkOutput, NaVIDAChunkPolicy
-from habitat_vln.policies import MockVLMPolicy as StableMockVLMPolicy
-from habitat_vln.runtime import TRAJECTORY_FIELDS, TrajectoryRecorder
-from habitat_vln.vlm_policy import MockVLMPolicy
-from habitat_vln.vlm_policy import PolicyOutput as LegacyPolicyOutput
+from habitat_vln.policies import ActionChunkOutput, MockVLMPolicy, NaVIDAChunkPolicy
+from habitat_vln.runtime import TRAJECTORY_FIELDS, TrajectoryRecorder, write_video
 
 
 class HabitatVLNInterfaceTest(unittest.TestCase):
@@ -115,9 +115,8 @@ class HabitatVLNInterfaceTest(unittest.TestCase):
         self.assertIsInstance(policy, NavigationPolicy)
         self.assertIsInstance(output, PolicyOutput)
         self.assertEqual(output.action, "move_forward")
-        self.assertIs(StableMockVLMPolicy, MockVLMPolicy)
 
-    def test_mock_policy_keeps_legacy_call_compatible(self):
+    def test_mock_policy_keeps_legacy_predict_signature(self):
         policy = MockVLMPolicy(allowed_actions={"move_forward", "turn_left"})
 
         output = policy.predict(
@@ -128,7 +127,7 @@ class HabitatVLNInterfaceTest(unittest.TestCase):
         )
 
         self.assertEqual(output.action, "move_forward")
-        self.assertIs(LegacyPolicyOutput, PolicyOutput)
+        self.assertIsInstance(output, PolicyOutput)
 
     def test_navida_policy_accepts_new_navigation_observation(self):
         class FakeRuntime:
@@ -180,6 +179,43 @@ class HabitatVLNInterfaceTest(unittest.TestCase):
 
             self.assertEqual(reader.fieldnames, TRAJECTORY_FIELDS)
             self.assertEqual(saved_rows[0]["action"], "move_forward")
+
+    @unittest.skipUnless(
+        shutil.which("ffmpeg") and shutil.which("ffprobe"),
+        "ffmpeg and ffprobe are required for H.264 verification",
+    )
+    def test_video_writer_outputs_browser_compatible_h264(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            frame_paths = []
+            for index, value in enumerate([30, 180]):
+                frame_path = directory / f"frame_{index:03d}.jpg"
+                frame = np.full((16, 16, 3), value, dtype=np.uint8)
+                self.assertTrue(cv2.imwrite(str(frame_path), frame))
+                frame_paths.append(str(frame_path))
+
+            video_path = directory / "video.mp4"
+            self.assertTrue(write_video(frame_paths, str(video_path), fps=2.0))
+
+            probe = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=codec_name",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(video_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(probe.stdout.strip(), "h264")
+            self.assertFalse((directory / "video.mp4v.mp4").exists())
 
 
 if __name__ == "__main__":

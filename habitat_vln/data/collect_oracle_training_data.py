@@ -1,4 +1,4 @@
-"""Collect RGB/instruction/Oracle-action samples from Habitat episodes."""
+"""Collect RGB, instruction, and Oracle-action samples from Habitat episodes."""
 
 import argparse
 import csv
@@ -9,40 +9,16 @@ from pathlib import Path
 import cv2
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
-try:
-    from .evaluate_pointnav_policies import (
-        action_name_from_habitat_action,
-    )
-    from .envs import (
-        ACTION_MAP,
-        build_env,
-        build_navigation_context,
-        depth_sensor_config,
-        success_distance,
-    )
-    from .runtime import (
-        episode_instruction_text,
-        instruction_text,
-        rgb_to_bgr,
-    )
-    from .training_data import make_record
-except ImportError:
-    from evaluate_pointnav_policies import (
-        action_name_from_habitat_action,
-    )
-    from envs import (
-        ACTION_MAP,
-        build_env,
-        build_navigation_context,
-        depth_sensor_config,
-        success_distance,
-    )
-    from runtime import (
-        episode_instruction_text,
-        instruction_text,
-        rgb_to_bgr,
-    )
-    from training_data import make_record
+from ..envs import (
+    ACTION_MAP,
+    build_env,
+    build_navigation_context,
+    depth_sensor_config,
+    success_distance,
+)
+from ..evaluation.evaluate_pointnav_policies import action_name_from_habitat_action
+from ..runtime import episode_instruction_text, instruction_text, rgb_to_bgr
+from .training_data import make_record
 
 
 DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"

@@ -1,4 +1,4 @@
-"""Validate navigation data and QLoRA-fine-tune Qwen2.5-VL on Oracle actions."""
+"""QLoRA-fine-tune Qwen2.5-VL on single-step Oracle actions."""
 
 import argparse
 import json
@@ -7,24 +7,14 @@ from pathlib import Path
 
 from PIL import Image
 
-try:
-    from .training_data import (
-        assistant_answer,
-        dataset_summary,
-        load_manifests,
-        make_record,
-        split_by_episode,
-        training_prompt,
-    )
-except ImportError:
-    from training_data import (
-        assistant_answer,
-        dataset_summary,
-        load_manifests,
-        make_record,
-        split_by_episode,
-        training_prompt,
-    )
+from ..data.training_data import (
+    assistant_answer,
+    dataset_summary,
+    load_manifests,
+    make_record,
+    split_by_episode,
+    training_prompt,
+)
 
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"

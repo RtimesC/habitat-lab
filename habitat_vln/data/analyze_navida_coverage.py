@@ -1,4 +1,4 @@
-"""Analyze VLN navigation-state and Oracle-action coverage in JSONL data."""
+"""Analyze navigation-state and Oracle-action coverage in JSONL data."""
 
 import argparse
 import csv

@@ -1,4 +1,4 @@
-"""Convert Habitat Oracle manifests into NaVIDA VLN and IDS samples."""
+"""Convert Oracle manifests into NaVIDA VLN and IDS samples."""
 
 import argparse
 import csv
@@ -6,12 +6,8 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-try:
-    from .analyze_navida_coverage import bearing_bin, distance_bin
-    from .navida_data import build_episode_samples, dataset_summary
-except ImportError:
-    from analyze_navida_coverage import bearing_bin, distance_bin
-    from navida_data import build_episode_samples, dataset_summary
+from .analyze_navida_coverage import bearing_bin, distance_bin
+from .navida_data import build_episode_samples, dataset_summary
 
 
 def load_source_records(manifest_path):

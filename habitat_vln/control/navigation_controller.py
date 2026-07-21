@@ -5,10 +5,10 @@ from typing import FrozenSet, Tuple
 
 try:
     from ..core import PolicyOutput
-    from ..prompts import VALID_ACTIONS
+    from ..policies.prompts import VALID_ACTIONS
 except ImportError:
     from core import PolicyOutput
-    from prompts import VALID_ACTIONS
+    from policies.prompts import VALID_ACTIONS
 
 
 def navigation_fallback_action(goal_angle_deg, previous_collision, depth_center_m):

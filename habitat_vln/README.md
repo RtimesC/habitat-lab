@@ -11,16 +11,21 @@ in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - **VLN** names the task: vision-and-language navigation.
 - **VLM** names the model family used as a policy, such as Qwen-VL.
 
-So the package is `habitat_vln`, while model-facing code can still use names
-like `vlm_policy.py` or `QwenVLMPolicy`.
+So the package is `habitat_vln`, while policy implementations and prompt
+templates live under `habitat_vln/policies/`.
 
 ## Entrypoints
 
-- `habitat_vln_nav.py`: main Habitat-Lab environment runner with policy classes,
-  standard VLN episodes, frame export, video export, Success/SPL metrics, and
-  trajectory CSV logging.
-- `qwen_habitat_sim_nav.py`: direct `habitat_sim` Qwen runner kept as a focused
-  experiment script. It writes a video plus an aligned trajectory CSV.
+- `habitat_vln_nav.py`: main Habitat-Lab command entrypoint for standard VLN
+  episodes, frame export, video export, Success/SPL metrics, and trajectory CSV
+  logging.
+- `legacy/qwen_habitat_sim_nav.py`: archived direct-`habitat_sim` Qwen runner.
+  It remains available for historical comparison but is not a framework entrypoint.
+- `python -m habitat_vln.data.<tool>`: dataset checks, generation, collection,
+  coverage analysis, and training-record construction.
+- `python -m habitat_vln.training.<tool>`: Qwen and NaVIDA QLoRA training.
+- `python -m habitat_vln.evaluation.<tool>`: offline and closed-loop evaluation.
+- `python -m habitat_vln.pipelines.hm3d_navida_pipeline`: staged HM3D workflow.
 
 ## Standard VLN Run
 
@@ -73,7 +78,7 @@ Quick checks:
 ```bash
 test -f data/datasets/vln/mp3d/r2r/v1/val_seen/val_seen.json.gz
 find data/scene_datasets/mp3d -mindepth 2 -maxdepth 2 -name '*.glb' | head
-conda run -n habitat_vlm python habitat_vln/check_vln_data.py --splits val_seen
+conda run -n habitat_vlm python -m habitat_vln.data.check_vln_data --splits val_seen
 ```
 
 ## HM3D Smoke Test
@@ -103,7 +108,7 @@ curl -L --retry 8 --retry-delay 3 --continue-at - \
 Generate a tiny HM3D PointNav dataset from the downloaded scene:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/generate_hm3d_pointnav_smoke.py \
+conda run -n habitat_vlm python -m habitat_vln.data.generate_hm3d_pointnav_smoke \
   --episodes 20 \
   --min-distance 2 \
   --max-distance 6
@@ -125,7 +130,7 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
 Check the non-VLM baselines before loading Qwen:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/evaluate_pointnav_policies.py \
+conda run -n habitat_vlm python -m habitat_vln.evaluation.evaluate_pointnav_policies \
   --policies oracle geometric \
   --num-episodes 20 \
   --max-steps 80 \
@@ -226,6 +231,9 @@ generated chunk, so every 1 Hz tick replans from the latest image.
 ## Outputs
 
 Runtime artifacts go under `habitat_vln/outputs/`, which is ignored by git.
+Videos are transcoded to browser-compatible H.264 with `ffmpeg`, so they can be
+previewed in VS Code. If `ffmpeg` or `libx264` is unavailable, the runtime keeps
+the original `mp4v` video and prints a warning instead of discarding it.
 
 ## QLoRA Training Pipeline
 
@@ -242,13 +250,13 @@ later experiment must remove or replace this privileged simulator state.
 The pipeline can be checked now, without MP3D and without loading Qwen:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py --self-test
+conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora --self-test
 ```
 
 After the MP3D scenes are available, first collect a small R2R Oracle dataset:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/collect_oracle_training_data.py \
+conda run -n habitat_vlm python -m habitat_vln.data.collect_oracle_training_data \
   --dataset-split train \
   --num-episodes 100 \
   --max-steps 500
@@ -266,7 +274,7 @@ excluded from `manifest.jsonl` by default. Validate the generated data before
 loading the model:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py \
+conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora \
   --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
   --dry-run
 ```
@@ -283,7 +291,7 @@ Start with a deliberately small overfitting run on the RTX 4060 8GB GPU:
 
 ```bash
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-conda run -n habitat_vlm python habitat_vln/train_qwen_qlora.py \
+conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora \
   --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
   --max-samples 100 \
   --validation-ratio 0.1 \
@@ -324,7 +332,7 @@ single-step manifests remain valid because this is an optional extra field.
 Collect a deliberately small Habitat trajectory first:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/collect_oracle_training_data.py \
+conda run -n habitat_vlm python -m habitat_vln.data.collect_oracle_training_data \
   --task-config benchmark/nav/pointnav/pointnav_hm3d.yaml \
   --dataset-path 'data/datasets/pointnav/hm3d_smoke/v1/{split}/{split}.json.gz' \
   --dataset-split val \
@@ -337,7 +345,7 @@ conda run -n habitat_vlm python habitat_vln/collect_oracle_training_data.py \
 Convert the timestamped Oracle manifest into paired VLN and IDS records:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/build_navida_training_data.py \
+conda run -n habitat_vlm python -m habitat_vln.data.build_navida_training_data \
   --source-manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl
 ```
 
@@ -346,7 +354,7 @@ The converter writes `navida/manifest.jsonl`, `navida/episodes.csv`, and
 schema without loading Qwen:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/train_navida_qlora.py \
+conda run -n habitat_vlm python -m habitat_vln.training.train_navida_qlora \
   --manifest habitat_vln/outputs/oracle_training_data/collect_*/navida/manifest.jsonl \
   --validation-ratio 0 \
   --dry-run
@@ -360,7 +368,7 @@ grammar from instruction-conditioned VLN samples and two-frame IDS samples.
 Score generated action chunks separately for VLN and IDS:
 
 ```bash
-conda run -n habitat_vlm python habitat_vln/evaluate_navida_outputs.py \
+conda run -n habitat_vlm python -m habitat_vln.evaluation.evaluate_navida_outputs \
   --manifest path/to/navida/manifest.jsonl \
   --adapter-path path/to/final_adapter \
   --output-dir path/to/offline_eval \
@@ -388,7 +396,8 @@ guard. Results using it must be reported separately from the pure NaVIDA policy.
 
 ## HM3D NaVIDA Engineering Pipeline
 
-Use `hm3d_navida_pipeline.py` to run the HM3D-only workflow in explicit stages.
+Use `habitat_vln.pipelines.hm3d_navida_pipeline` to run the HM3D-only workflow
+in explicit stages.
 The default small protocol uses two local HM3D example scenes for training and
 one scene-disjoint example scene for validation. It is an engineering protocol,
 not an R2R/RxR benchmark. No stage downloads HM3D automatically.
@@ -399,22 +408,22 @@ the same workspace for every stage:
 ```bash
 WORKSPACE=habitat_vln/outputs/hm3d_navida_system
 
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" check
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" prepare
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" collect
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" build --max-samples 100
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" train --epochs 3
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" offline-eval --samples-per-task 20
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" closed-loop --num-episodes 2 \
   --max-executed-actions 3
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" report
 ```
 
@@ -437,20 +446,20 @@ VLN/IDS samples.
 ```bash
 WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_60ep
 
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" prepare \
   --train-scene-count 2 --val-scene-count 1 \
   --train-episodes 60 --val-episodes 15 \
   --dataset-label hm3d_example_scale_60ep_v1
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" collect --num-episodes 60 --max-steps 80
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" coverage --data oracle \
   --minimum-cell-count 20
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" build --max-samples 600 \
   --sample-strategy coverage-balanced
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" coverage --data mixed \
   --minimum-cell-count 5
 ```
@@ -490,7 +499,7 @@ proxy for narrow areas, not a semantic room or corridor annotation.
 ```bash
 WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_300ep_20260713
 
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" prepare \
   --train-scene-count 10 --val-scene-count 3 \
   --train-episodes 300 --val-episodes 60 \
@@ -499,9 +508,9 @@ conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
   --min-route-turns 2 --turn-threshold-deg 30 \
   --clearance-threshold 0.65 --min-low-clearance-fraction 0.7 \
   --dataset-label hm3d_13scene_coverage_300ep_v1
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" collect --num-episodes 300 --max-steps 180
-conda run -n habitat_vlm python habitat_vln/hm3d_navida_pipeline.py \
+conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" coverage --data oracle --minimum-cell-count 50
 ```
 

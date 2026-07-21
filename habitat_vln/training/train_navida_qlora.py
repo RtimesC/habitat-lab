@@ -1,4 +1,4 @@
-"""QLoRA training entrypoint for mixed NaVIDA VLN and IDS samples."""
+"""QLoRA-fine-tune Qwen on mixed NaVIDA VLN and IDS samples."""
 
 import argparse
 import json
@@ -7,26 +7,15 @@ from pathlib import Path
 
 from PIL import Image
 
-try:
-    from .navida_data import (
-        assistant_answer,
-        dataset_summary,
-        hierarchical_probabilistic_action_chunking,
-        load_manifest,
-        navigation_prompt,
-        split_by_episode,
-    )
-    from .train_qwen_qlora import require_training_dependencies, resolve_model_class
-except ImportError:
-    from navida_data import (
-        assistant_answer,
-        dataset_summary,
-        hierarchical_probabilistic_action_chunking,
-        load_manifest,
-        navigation_prompt,
-        split_by_episode,
-    )
-    from train_qwen_qlora import require_training_dependencies, resolve_model_class
+from ..data.navida_data import (
+    assistant_answer,
+    dataset_summary,
+    hierarchical_probabilistic_action_chunking,
+    load_manifest,
+    navigation_prompt,
+    split_by_episode,
+)
+from .train_qwen_qlora import require_training_dependencies, resolve_model_class
 
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
