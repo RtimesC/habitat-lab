@@ -1,0 +1,93 @@
+"""Run-directory, frame-overlay, and video artifact helpers."""
+
+import glob
+import os
+from datetime import datetime
+
+import cv2
+import numpy as np
+
+
+def prepare_run_dir(output_dir):
+    """Create a timestamped run directory and its frame directory."""
+    run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
+    run_dir = os.path.join(output_dir, run_name)
+    frame_dir = os.path.join(run_dir, "frames")
+    os.makedirs(frame_dir, exist_ok=True)
+    for old_frame in glob.glob(os.path.join(frame_dir, "frame_*.jpg")):
+        os.remove(old_frame)
+    return run_dir, frame_dir
+
+
+def rgb_to_bgr(rgb):
+    """Convert Habitat RGB channel order for OpenCV output."""
+    return rgb[:, :, [2, 1, 0]].copy()
+
+
+def draw_status(bgr, step, action, valid_action, collision):
+    """Draw compact execution status on one video frame."""
+    color = (255, 255, 255) if valid_action else (0, 165, 255)
+    lines = [
+        f"step={step:03d}",
+        f"action={action}",
+        f"valid={valid_action} collision={collision}",
+    ]
+    height, width = bgr.shape[:2]
+    font_scale = min(0.65, max(0.38, width / 900.0))
+    thickness = 2 if width >= 480 else 1
+    padding = max(6, width // 100)
+    text_height = cv2.getTextSize(
+        "Ag",
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        thickness,
+    )[0][1]
+    line_height = text_height + max(7, text_height // 2)
+    overlay_height = min(height, padding * 2 + line_height * len(lines))
+    status_area = bgr[:overlay_height, :].copy()
+    black = np.zeros_like(status_area)
+    bgr[:overlay_height, :] = cv2.addWeighted(
+        status_area,
+        0.35,
+        black,
+        0.65,
+        0.0,
+    )
+
+    for index, line in enumerate(lines):
+        cv2.putText(
+            bgr,
+            line,
+            (padding, padding + text_height + index * line_height),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            thickness,
+            cv2.LINE_AA,
+        )
+
+
+def write_video(frame_paths, video_path, fps):
+    """Encode saved frames into an MP4 video."""
+    if not frame_paths:
+        return False
+
+    first = cv2.imread(frame_paths[0])
+    if first is None:
+        return False
+
+    height, width = first.shape[:2]
+    writer = cv2.VideoWriter(
+        video_path,
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        fps,
+        (width, height),
+    )
+    try:
+        for frame_path in frame_paths:
+            frame = cv2.imread(frame_path)
+            if frame is not None:
+                writer.write(frame)
+    finally:
+        writer.release()
+    return os.path.exists(video_path)

@@ -5,39 +5,37 @@ import time
 from datetime import datetime
 
 import numpy as np
-from habitat.sims.habitat_simulator.actions import HabitatSimActions
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
 try:
-    from .habitat_vln_nav import (
-        action_from_advice,
+    from .control import action_from_advice, geometric_navigation_action
+    from .core import NavigationObservation
+    from .envs import (
+        ACTION_MAP,
+        NavigationStateBuilder,
+        build_navigation_context,
         build_env,
-        depth_region_summary,
-        depth_sensor_config,
-        depth_stats,
-        geometric_navigation_action,
         get_goal_position,
-        instruction_text,
         optional_float,
-        pointgoal_state,
-        success_distance,
     )
-    from .vlm_policy import DEFAULT_MODEL_ID, QwenVLMPolicy
+    from .policies import DEFAULT_MODEL_ID, QwenVLMPolicy
+    from .runtime import instruction_text
 except ImportError:
-    from habitat_vln_nav import (
-        action_from_advice,
+    from control import action_from_advice, geometric_navigation_action
+    from core import NavigationObservation
+    from envs import (
+        ACTION_MAP,
+        NavigationStateBuilder,
+        build_navigation_context,
         build_env,
-        depth_region_summary,
-        depth_sensor_config,
-        depth_stats,
-        geometric_navigation_action,
         get_goal_position,
-        instruction_text,
         optional_float,
-        pointgoal_state,
-        success_distance,
     )
-    from vlm_policy import DEFAULT_MODEL_ID, QwenVLMPolicy
+    from policies import DEFAULT_MODEL_ID, QwenVLMPolicy
+    from runtime import instruction_text
+
+
+_STATE_API_COMPATIBILITY_EXPORTS = (build_navigation_context,)
 
 
 DEFAULT_TASK_CONFIG = "benchmark/nav/pointnav/pointnav_hm3d.yaml"
@@ -48,12 +46,6 @@ DEFAULT_SCENES_DIR = "data/versioned_data/hm3d-0.2"
 DEFAULT_INSTRUCTION = "Navigate to the target location and stop when you reach it."
 DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/pointnav_policy_eval"
 
-ACTION_MAP = {
-    "turn_left": HabitatSimActions.turn_left,
-    "turn_right": HabitatSimActions.turn_right,
-    "move_forward": HabitatSimActions.move_forward,
-    "stop": HabitatSimActions.stop,
-}
 ACTION_NAMES = {value: key for key, value in ACTION_MAP.items()}
 
 EPISODE_FIELDS = [
@@ -92,70 +84,6 @@ def action_name_from_habitat_action(action):
     return ACTION_NAMES.get(action, str(action).lower())
 
 
-def build_navigation_context(
-    env,
-    obs,
-    depth_config,
-    goal_success_distance,
-    step,
-    previous_action,
-    previous_action_count,
-    previous_collision,
-    previous_goal_distance,
-    no_progress_steps,
-):
-    agent_state = env.sim.get_agent_state()
-    goal_position = get_goal_position(env)
-    goal_relative = pointgoal_state(env, obs, agent_state, goal_position)
-    if goal_relative is None:
-        goal_distance_m = None
-        goal_angle_deg = None
-    else:
-        goal_distance_m, goal_angle_deg = goal_relative
-
-    distance_change_m = (
-        None
-        if goal_distance_m is None or previous_goal_distance is None
-        else goal_distance_m - previous_goal_distance
-    )
-    depth_left_m, depth_center_m, depth_right_m = depth_region_summary(
-        obs,
-        depth_config,
-    )
-    depth_min, depth_mean = depth_stats(obs, depth_config)
-    current_distance = optional_float(env.get_metrics().get("distance_to_goal", ""))
-
-    return {
-        "step": step,
-        "agent_position": tuple(float(x) for x in agent_state.position),
-        "agent_rotation": (
-            float(agent_state.rotation.x),
-            float(agent_state.rotation.y),
-            float(agent_state.rotation.z),
-            float(agent_state.rotation.w),
-        ),
-        "goal_position": (
-            None if goal_position is None else tuple(float(x) for x in goal_position)
-        ),
-        "goal_distance_m": goal_distance_m,
-        "goal_angle_deg": goal_angle_deg,
-        "success_distance_m": goal_success_distance,
-        "distance_change_m": distance_change_m,
-        "collided": bool(env.sim.previous_step_collided),
-        "depth_left_m": depth_left_m,
-        "depth_center_m": depth_center_m,
-        "depth_right_m": depth_right_m,
-        "previous_action": previous_action,
-        "previous_action_count": previous_action_count,
-        "previous_collision": previous_collision,
-        "distance_to_goal": current_distance,
-        "distance_delta": distance_change_m,
-        "no_progress_steps": no_progress_steps,
-        "depth_min": depth_min,
-        "depth_mean": depth_mean,
-    }
-
-
 def choose_action(policy_name, env, policy, obs, instruction, context):
     if policy_name == "oracle":
         follower = policy
@@ -177,10 +105,13 @@ def choose_action(policy_name, env, policy, obs, instruction, context):
         ), True
 
     policy_output = policy.predict(
-        obs["rgb"],
-        instruction,
-        step=context["step"],
-        navigation_context=context,
+        NavigationObservation(
+            rgb=obs["rgb"],
+            depth=obs.get("depth"),
+            instruction=instruction,
+            step=context["step"],
+            navigation_context=context,
+        ),
     )
     action_name = action_from_advice(
         policy_output.action,
@@ -196,8 +127,8 @@ def choose_action(policy_name, env, policy, obs, instruction, context):
 
 
 def run_policy(env, policy_name, policy, args):
-    depth_config = depth_sensor_config(env)
-    goal_success_distance = success_distance(env)
+    state_builder = NavigationStateBuilder(env)
+    goal_success_distance = state_builder.success_distance_m
     rows = []
 
     for episode_index in range(args.num_episodes):
@@ -223,21 +154,18 @@ def run_policy(env, policy_name, policy, args):
 
         for step in range(args.max_steps):
             metrics_before_action = env.get_metrics()
-            current_distance = optional_float(
-                metrics_before_action.get("distance_to_goal", "")
+            navigation_state = state_builder.build(
+                obs=obs,
+                step=step,
+                previous_action=previous_action,
+                previous_action_count=previous_action_count,
+                previous_collision=previous_collision,
+                previous_goal_distance=previous_goal_distance,
+                no_progress_steps=no_progress_steps,
+                metrics=metrics_before_action,
             )
-            context = build_navigation_context(
-                env,
-                obs,
-                depth_config,
-                goal_success_distance,
-                step,
-                previous_action,
-                previous_action_count,
-                previous_collision,
-                previous_goal_distance,
-                no_progress_steps,
-            )
+            current_distance = navigation_state.distance_to_goal
+            context = navigation_state.as_navigation_context()
             action_name, is_valid = choose_action(
                 policy_name,
                 env,

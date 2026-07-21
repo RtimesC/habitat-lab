@@ -8,9 +8,11 @@ import numpy as np
 from PIL import Image
 
 try:
+    from .core import NavigationObservation
     from .navida_data import navigation_prompt, uniformly_sample_indices
     from .vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
 except ImportError:
+    from core import NavigationObservation
     from navida_data import navigation_prompt, uniformly_sample_indices
     from vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
 
@@ -206,10 +208,24 @@ class NaVIDAChunkPolicy:
         """Force replanning after an external safety override."""
         self.action_queue = []
 
-    def predict(self, rgb, instruction, step=None, navigation_context=None):
-        if step in (None, 0):
+    def predict(
+        self,
+        observation,
+        instruction=None,
+        step=None,
+        navigation_context=None,
+    ):
+        observation = NavigationObservation.from_legacy_inputs(
+            observation,
+            instruction,
+            step,
+            navigation_context,
+        )
+        if observation.step in (None, 0):
             self.reset()
-        self.history.append(Image.fromarray(np.asarray(rgb).astype(np.uint8)))
+        self.history.append(
+            Image.fromarray(np.asarray(observation.rgb).astype(np.uint8))
+        )
 
         if self.action_queue:
             action = self.action_queue.pop(0)
@@ -229,8 +245,8 @@ class NaVIDAChunkPolicy:
         prompt = navigation_prompt(
             {
                 "task": "vln",
-                "instruction": instruction,
-                "navigation_context": navigation_context,
+                "instruction": observation.instruction,
+                "navigation_context": observation.navigation_context,
             }
         )
         chunk = self.runtime.generate_action_chunk(selected_images, prompt)

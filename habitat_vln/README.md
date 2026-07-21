@@ -3,6 +3,9 @@
 This directory is the single home for the Habitat vision-and-language navigation
 experiments.
 
+The runtime module boundaries and simulator-to-robot extension points are described
+in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ## Naming
 
 - **VLN** names the task: vision-and-language navigation.

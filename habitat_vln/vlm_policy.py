@@ -1,12 +1,12 @@
 import json
 import re
-from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
 from PIL import Image
 
 try:
+    from .core import NavigationObservation, PolicyOutput
     from .prompts import (
         ADVISORY_ACTIONS,
         EXPLORATION_ACTIONS,
@@ -14,6 +14,7 @@ try:
         build_navigation_prompt,
     )
 except ImportError:
+    from core import NavigationObservation, PolicyOutput
     from prompts import (
         ADVISORY_ACTIONS,
         EXPLORATION_ACTIONS,
@@ -23,13 +24,6 @@ except ImportError:
 
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-
-
-@dataclass
-class PolicyOutput:
-    action: str
-    raw_text: str
-    is_valid: bool
 
 
 class MockVLMPolicy:
@@ -54,11 +48,27 @@ class MockVLMPolicy:
                 "move_forward",
             ]
 
-    def predict(self, rgb, instruction, step=None, navigation_context=None):
-        action = self._actions[(step or 0) % len(self._actions)]
+    def predict(
+        self,
+        observation,
+        instruction=None,
+        step=None,
+        navigation_context=None,
+    ):
+        observation = NavigationObservation.from_legacy_inputs(
+            observation,
+            instruction,
+            step,
+            navigation_context,
+        )
+        action = self._actions[(observation.step or 0) % len(self._actions)]
         if action not in self.allowed_actions:
             action = sorted(self.allowed_actions)[0]
-        return PolicyOutput(action=action, raw_text=f'{{"action": "{action}"}}', is_valid=True)
+        return PolicyOutput(
+            action=action,
+            raw_text=f'{{"action": "{action}"}}',
+            is_valid=True,
+        )
 
 
 class QwenVLMPolicy:
@@ -126,13 +136,25 @@ class QwenVLMPolicy:
             process_vision_info = None
         self.process_vision_info = process_vision_info
 
-    def predict(self, rgb, instruction, step=None, navigation_context=None):
-        prompt = build_navigation_prompt(
+    def predict(
+        self,
+        observation,
+        instruction=None,
+        step=None,
+        navigation_context=None,
+    ):
+        observation = NavigationObservation.from_legacy_inputs(
+            observation,
             instruction,
-            self.allowed_actions,
-            navigation_context=navigation_context,
+            step,
+            navigation_context,
         )
-        image = Image.fromarray(np.asarray(rgb).astype(np.uint8))
+        prompt = build_navigation_prompt(
+            observation.instruction,
+            self.allowed_actions,
+            navigation_context=observation.navigation_context,
+        )
+        image = Image.fromarray(np.asarray(observation.rgb).astype(np.uint8))
         messages = [
             {
                 "role": "user",
