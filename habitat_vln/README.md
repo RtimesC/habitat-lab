@@ -408,6 +408,12 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
   --policy-protocol paper_pure
 ```
 
+On native Linux, the renderer device from the task configuration is used by
+default. Under WSLg/Mesa, CUDA-to-EGL device matching may fail for device `0`.
+In that case, add `--gpu-device-id -1` so EGL selects the default WSLg renderer.
+This changes only Habitat rendering; the separate NaVIDA server continues to
+use its configured CUDA device.
+
 The adapter calls `POST /v1/episodes/start` after every environment reset. On
 each simulator step it calls `POST /v1/steps` with only the episode id,
 simulator step, instruction, and a lossless base64-encoded RGB PNG. Depth, pose,

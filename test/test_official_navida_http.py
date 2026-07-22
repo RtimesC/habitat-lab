@@ -666,6 +666,7 @@ class OfficialNaVIDACliTest(unittest.TestCase):
         self.assertEqual(args.official_navida_url, "http://127.0.0.1:8008")
         self.assertGreater(args.official_navida_timeout, 0.0)
         self.assertIsNone(args.policy_protocol)
+        self.assertIsNone(args.gpu_device_id)
 
     def test_official_main_uses_joint_http_policy_without_loading_qwen(self):
         fake_policy = SimpleNamespace(policy_protocol="paper_pure")
@@ -677,6 +678,8 @@ class OfficialNaVIDACliTest(unittest.TestCase):
             "http://navida.test:9000",
             "--official-navida-timeout",
             "4.5",
+            "--gpu-device-id",
+            "-1",
         ]
 
         with mock.patch.object(sys, "argv", argv), mock.patch.object(
@@ -697,7 +700,7 @@ class OfficialNaVIDACliTest(unittest.TestCase):
             habitat_vln_nav,
             "build_env",
             return_value=fake_env,
-        ), mock.patch.object(
+        ) as build_env_mock, mock.patch.object(
             habitat_vln_nav,
             "run_navigation",
         ) as run_navigation_mock:
@@ -709,6 +712,10 @@ class OfficialNaVIDACliTest(unittest.TestCase):
         )
         qwen_policy_class.assert_not_called()
         controller_class.assert_not_called()
+        self.assertEqual(
+            build_env_mock.call_args.kwargs["gpu_device_id"],
+            -1,
+        )
         run_args = run_navigation_mock.call_args.args[2]
         self.assertEqual(run_args.frequency_mode, "joint")
         self.assertEqual(run_args.policy_protocol, "paper_pure")

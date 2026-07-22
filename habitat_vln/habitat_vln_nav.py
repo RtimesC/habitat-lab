@@ -187,6 +187,14 @@ def parse_args():
     parser.add_argument("--dataset-split")
     parser.add_argument("--dataset-path")
     parser.add_argument("--scenes-dir")
+    parser.add_argument(
+        "--gpu-device-id",
+        type=int,
+        help=(
+            "Override the Habitat-Sim renderer GPU device id. "
+            "Use -1 to let EGL select the default device."
+        ),
+    )
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument(
@@ -467,6 +475,7 @@ def main():
         dataset_split=args.dataset_split,
         dataset_path=args.dataset_path,
         scenes_dir=args.scenes_dir,
+        gpu_device_id=args.gpu_device_id,
     )
     try:
         run_navigation(env, policy, args, controller=controller)
