@@ -61,12 +61,16 @@ class NavigationSchedulerTest(unittest.TestCase):
         )
 
     def test_layered_controller_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "requires --qwen-role advisor"):
+        with self.assertRaisesRegex(
+            ValueError, "requires --qwen-role advisor"
+        ):
             validate_frequencies(scheduler_args(qwen_role="controller"))
 
     def test_inference_deadline_advances_past_current_tick(self):
         self.assertTrue(inference_is_due(2.0, 2.0))
-        next_time = advance_inference_time(0.0, inference_hz=0.5, logical_time_sec=2.0)
+        next_time = advance_inference_time(
+            0.0, inference_hz=0.5, logical_time_sec=2.0
+        )
         self.assertEqual(next_time, 4.0)
 
 

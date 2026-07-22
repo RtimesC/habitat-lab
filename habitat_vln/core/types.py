@@ -39,9 +39,11 @@ class NavigationObservation:
 class PolicyOutput:
     """A parsed policy decision plus the original model output for debugging."""
 
-    action: str
+    action: Optional[str]
     raw_text: str
     is_valid: bool
+    termination_reason: Optional[str] = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable

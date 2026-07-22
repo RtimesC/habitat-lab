@@ -6,6 +6,10 @@ from .navida_policy import (
     QwenNaVIDAModel,
     parse_action_chunk,
 )
+from .official_navida_http_policy import (
+    DEFAULT_OFFICIAL_NAVIDA_URL,
+    OfficialNaVIDAHTTPPolicy,
+)
 from .prompts import (
     ADVISORY_ACTIONS,
     EXPLORATION_ACTIONS,
@@ -26,10 +30,12 @@ __all__ = [
     "ActionChunkOutput",
     "ADVISORY_ACTIONS",
     "DEFAULT_MODEL_ID",
+    "DEFAULT_OFFICIAL_NAVIDA_URL",
     "EXPLORATION_ACTIONS",
     "MockVLMPolicy",
     "NAVIGATION_PROMPT_TEMPLATE",
     "NaVIDAChunkPolicy",
+    "OfficialNaVIDAHTTPPolicy",
     "PolicyOutput",
     "QwenNaVIDAModel",
     "QwenVLMPolicy",
