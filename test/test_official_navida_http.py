@@ -1,18 +1,18 @@
 import base64
 import csv
-from io import BytesIO
 import json
 import sys
 import tempfile
 import unittest
+from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
 from PIL import Image
 
-from habitat_vln.core import NavigationObservation, PolicyOutput
 from habitat_vln import habitat_vln_nav
+from habitat_vln.core import NavigationObservation, PolicyOutput
 from habitat_vln.policies import OfficialNaVIDAHTTPPolicy
 from habitat_vln.runtime.navigation_runner import run_navigation
 
@@ -306,7 +306,9 @@ class OfficialNaVIDAHTTPPolicyTest(unittest.TestCase):
         self.assertEqual(output.metadata["decision_step"], 2)
         self.assertTrue(output.metadata["inferred"])
         self.assertEqual(output.metadata["latency_seconds"], 0.25)
-        self.assertEqual(output.metadata["server_metadata"], {"history_frames": 3})
+        self.assertEqual(
+            output.metadata["server_metadata"], {"history_frames": 3}
+        )
         self.assertIn("raw_output", output.metadata)
         self.assertIn("termination_reason", output.metadata)
         self.assertIn("error", output.metadata)
@@ -367,7 +369,9 @@ class OfficialNaVIDAHTTPPolicyTest(unittest.TestCase):
         self.assertIsNone(output.action)
         self.assertFalse(output.is_valid)
         self.assertEqual(output.raw_text, "malformed metadata")
-        self.assertIn("metadata must be a JSON object", output.metadata["error"])
+        self.assertIn(
+            "metadata must be a JSON object", output.metadata["error"]
+        )
 
     def test_unhashable_action_returns_invalid_output_without_raising(self):
         transport = FakeTransport(
@@ -403,7 +407,9 @@ class OfficialNaVIDAHTTPPolicyTest(unittest.TestCase):
         self.assertFalse(output.is_valid)
         self.assertIn("action must be a string", output.metadata["error"])
 
-    def test_malformed_termination_reason_does_not_escape_output_contract(self):
+    def test_malformed_termination_reason_does_not_escape_output_contract(
+        self,
+    ):
         transport = FakeTransport(
             [
                 {"episode_id": "episode-11", "reset": True},
@@ -523,7 +529,9 @@ class PaperPureRunnerTest(unittest.TestCase):
     def test_early_stop_is_executed_without_replacement(self):
         events = []
         env = FakeEnvironment(events)
-        policy = SequencePaperPurePolicy([PolicyOutput("stop", "server stop", True)])
+        policy = SequencePaperPurePolicy(
+            [PolicyOutput("stop", "server stop", True)]
+        )
 
         with tempfile.TemporaryDirectory() as output_dir:
             run_with_fakes(
@@ -535,7 +543,9 @@ class PaperPureRunnerTest(unittest.TestCase):
 
         self.assertEqual(env.actions, ["stop"])
 
-    def test_invalid_output_terminates_without_step_and_records_diagnostics(self):
+    def test_invalid_output_terminates_without_step_and_records_diagnostics(
+        self,
+    ):
         events = []
         env = FakeEnvironment(events)
         invalid_output = PolicyOutput(
@@ -551,9 +561,7 @@ class PaperPureRunnerTest(unittest.TestCase):
                 "server_metadata": {"history_frames": 2},
             },
         )
-        policy = SequencePaperPurePolicy(
-            [invalid_output]
-        )
+        policy = SequencePaperPurePolicy([invalid_output])
 
         with tempfile.TemporaryDirectory() as output_dir:
             trajectory_path = run_with_fakes(
@@ -568,7 +576,9 @@ class PaperPureRunnerTest(unittest.TestCase):
         self.assertEqual(env.actions, [])
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["action"], "")
-        self.assertEqual(rows[0]["raw_vlm_output"], "unparseable server output")
+        self.assertEqual(
+            rows[0]["raw_vlm_output"], "unparseable server output"
+        )
         self.assertEqual(rows[0]["policy_protocol"], "paper_pure")
         self.assertEqual(rows[0]["policy_decision_step"], "3")
         self.assertEqual(rows[0]["policy_inferred"], "True")
@@ -580,7 +590,9 @@ class PaperPureRunnerTest(unittest.TestCase):
             saved_metadata["termination_reason"],
             ["untrusted server value"],
         )
-        self.assertEqual(saved_metadata["server_metadata"], {"history_frames": 2})
+        self.assertEqual(
+            saved_metadata["server_metadata"], {"history_frames": 2}
+        )
         self.assertIsNone(invalid_output.termination_reason)
 
     def test_network_failure_terminates_without_fallback(self):
@@ -606,7 +618,9 @@ class PaperPureRunnerTest(unittest.TestCase):
 
         self.assertEqual(env.actions, [])
         self.assertEqual(row["termination_reason"], "http_request_failed")
-        self.assertIn("connection refused", json.loads(row["policy_metadata"])["error"])
+        self.assertIn(
+            "connection refused", json.loads(row["policy_metadata"])["error"]
+        )
 
     def test_episode_start_failure_is_recorded_without_fallback(self):
         events = []
@@ -689,7 +703,9 @@ class OfficialNaVIDACliTest(unittest.TestCase):
         ) as http_policy_class, mock.patch.object(
             habitat_vln_nav,
             "QwenVLMPolicy",
-            side_effect=AssertionError("Qwen must not load in Official HTTP mode"),
+            side_effect=AssertionError(
+                "Qwen must not load in Official HTTP mode"
+            ),
         ) as qwen_policy_class, mock.patch.object(
             habitat_vln_nav,
             "NavigationController",
