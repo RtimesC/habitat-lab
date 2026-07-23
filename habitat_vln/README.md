@@ -435,6 +435,8 @@ Use the dedicated entrypoint for the manually grounded
 ```bash
 conda run -n habitat_vlm python -m habitat_vln.demos.run_grounded_navida_demo \
   --official-navida-url http://127.0.0.1:8008 \
+  --official-navida-timeout 900 \
+  --gpu-device-id -1 \
   --num-episodes 1 \
   --max-steps 200
 ```
