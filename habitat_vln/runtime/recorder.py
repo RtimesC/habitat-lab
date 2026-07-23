@@ -56,6 +56,16 @@ TRAJECTORY_FIELDS = [
     "success",
     "spl",
     "image",
+    "policy_action",
+    "executed_action",
+    "action_valid",
+    "inference_latency_sec",
+    "position_x",
+    "position_y",
+    "position_z",
+    "rotation_yaw",
+    "done",
+    "error",
 ]
 
 
@@ -76,7 +86,9 @@ class TrajectoryRecorder:
 
     def write(self, row):
         if self._writer is None:
-            raise RuntimeError("TrajectoryRecorder must be used as a context manager")
+            raise RuntimeError(
+                "TrajectoryRecorder must be used as a context manager"
+            )
         self._writer.writerow(row)
 
     def __exit__(self, exc_type, exc_value, traceback):

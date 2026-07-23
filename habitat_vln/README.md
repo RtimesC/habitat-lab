@@ -427,6 +427,32 @@ failed without executing a fallback action. Server decision ids, inference
 status, latency, termination reason, and metadata are saved in
 `trajectory.csv`.
 
+### Grounded Habitat test-scene demo
+
+Use the dedicated entrypoint for the manually grounded
+`skokloster-castle.glb` engineering episode:
+
+```bash
+conda run -n habitat_vlm python -m habitat_vln.demos.run_grounded_navida_demo \
+  --official-navida-url http://127.0.0.1:8008 \
+  --num-episodes 1 \
+  --max-steps 200
+```
+
+The default dataset is
+`data/datasets/pointnav/habitat_test_scene_grounded_demo/v1/{split}/{split}.json.gz`.
+If that default is missing, the runner creates it through the project dataset
+generator API. A custom `--dataset-path` is never generated or overwritten.
+The instruction comes from `episode.info["instruction"]` unless
+`--instruction` explicitly overrides it.
+
+Each invocation creates an independent run directory containing
+`trajectory.csv`, `episode_summary.json`, `summary.md`, reviewable RGB frames,
+and `run.mp4` when video encoding is available. This is a Habitat test-scene
+engineering demo with `benchmark_comparable=false`; it is not an R2R, RxR,
+MP3D, or HM3D benchmark result. The Oracle route validation is an environment
+upper-bound check and must be kept separate from the Official NaVIDA result.
+
 ## HM3D NaVIDA Engineering Pipeline
 
 Use `habitat_vln.pipelines.hm3d_navida_pipeline` to run the HM3D-only workflow

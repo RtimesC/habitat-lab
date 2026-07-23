@@ -100,18 +100,23 @@ def build_payload() -> dict[str, Any]:
     }
 
 
+def write_dataset(output: Path) -> dict[str, Any]:
+    """Write the grounded demo dataset and return its payload."""
+    output = Path(output)
+    payload = build_payload()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(output, "wt", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    payload = build_payload()
+    payload = write_dataset(args.output)
     episode = payload["episodes"][0]
-
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-
-    with gzip.open(args.output, "wt", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
 
     print(f"wrote={args.output}")
     print(f"episode_id={episode['episode_id']}")
@@ -122,7 +127,9 @@ def main() -> None:
     print(f"instruction={episode['info']['instruction']}")
     print(f"geodesic_distance={episode['info']['geodesic_distance']}")
     print(f"route_turn_count={episode['info']['route_turn_count']}")
-    print(f"benchmark_comparable={payload['metadata']['benchmark_comparable']}")
+    print(
+        f"benchmark_comparable={payload['metadata']['benchmark_comparable']}"
+    )
 
 
 if __name__ == "__main__":
