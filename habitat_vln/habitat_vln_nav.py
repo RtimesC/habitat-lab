@@ -33,10 +33,12 @@ try:
     from .policies import (
         ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
+        DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
         VALID_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
+        OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
     )
     from .runtime import (
@@ -92,10 +94,12 @@ except ImportError:
     from policies import (
         ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
+        DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
         VALID_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
+        OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
     )
     from runtime import (
@@ -190,6 +194,14 @@ def parse_args(argv=None):
     parser.add_argument("--dataset-split")
     parser.add_argument("--dataset-path")
     parser.add_argument("--scenes-dir")
+    parser.add_argument(
+        "--gpu-device-id",
+        type=int,
+        help=(
+            "Override the Habitat-Sim renderer GPU device id. "
+            "Use -1 to let EGL select the default device."
+        ),
+    )
     parser.add_argument("--num-episodes", type=int, default=1)
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument(
@@ -330,11 +342,33 @@ def parse_args(argv=None):
         default=30.0,
         help="Only anti-stuck forward when the target angle is within this range.",
     )
-    parser.add_argument("--mock-policy", action="store_true")
-    parser.add_argument(
+    policy_group = parser.add_mutually_exclusive_group()
+    policy_group.add_argument("--mock-policy", action="store_true")
+    policy_group.add_argument(
         "--navida-chunk-policy",
         action="store_true",
         help="Use a NaVIDA adapter to generate and execute structured action chunks.",
+    )
+    policy_group.add_argument(
+        "--official-navida-http",
+        action="store_true",
+        help="Use the separately hosted Official NaVIDA HTTP policy.",
+    )
+    parser.add_argument(
+        "--official-navida-url",
+        default=DEFAULT_OFFICIAL_NAVIDA_URL,
+        help="Base URL of the Official NaVIDA policy server.",
+    )
+    parser.add_argument(
+        "--official-navida-timeout",
+        type=float,
+        default=30.0,
+        help="HTTP timeout in seconds for each Official NaVIDA request.",
+    )
+    parser.add_argument(
+        "--policy-protocol",
+        choices=["paper_pure"],
+        help="Execution protocol for Official NaVIDA HTTP mode.",
     )
     parser.add_argument("--navida-max-history-frames", type=int, default=8)
     parser.add_argument(
@@ -376,9 +410,28 @@ def main():
             f"experiment={args.experiment_name} "
             f"config={os.path.abspath(args.experiment_config)}"
         )
-    args.frequency_mode = resolve_frequency_mode(
-        args.frequency_mode, args.qwen_role
-    )
+    if args.official_navida_http:
+        if args.frequency_mode == "layered":
+            raise ValueError(
+                "--official-navida-http requires joint frequency mode"
+            )
+        if args.adapter_path:
+            raise ValueError(
+                "--official-navida-http cannot be combined with --adapter-path"
+            )
+        if args.no_stop:
+            raise ValueError("--official-navida-http cannot be combined with --no-stop")
+        args.frequency_mode = "joint"
+        args.policy_protocol = args.policy_protocol or "paper_pure"
+    else:
+        if args.policy_protocol is not None:
+            raise ValueError(
+                "--policy-protocol is only valid with --official-navida-http"
+            )
+        args.frequency_mode = resolve_frequency_mode(
+            args.frequency_mode,
+            args.qwen_role,
+        )
     validate_frequencies(args)
     os.makedirs(args.output_dir, exist_ok=True)
     args.execution_actions = (
@@ -400,11 +453,12 @@ def main():
             "with the current --no-stop setting."
         )
 
-    if args.navida_chunk_policy:
-        if args.mock_policy:
-            raise ValueError(
-                "--navida-chunk-policy cannot be combined with --mock-policy"
-            )
+    if args.official_navida_http:
+        policy = OfficialNaVIDAHTTPPolicy(
+            base_url=args.official_navida_url,
+            timeout=args.official_navida_timeout,
+        )
+    elif args.navida_chunk_policy:
         if args.qwen_role != "controller":
             raise ValueError(
                 "--navida-chunk-policy requires --qwen-role controller"
@@ -442,7 +496,11 @@ def main():
             adapter_path=args.adapter_path,
         )
 
-    controller = NavigationController(ControllerConfig.from_args(args))
+    controller = (
+        None
+        if args.official_navida_http
+        else NavigationController(ControllerConfig.from_args(args))
+    )
     env = build_env(
         task_config=args.task_config,
         width=args.width,
@@ -452,6 +510,7 @@ def main():
         dataset_split=args.dataset_split,
         dataset_path=args.dataset_path,
         scenes_dir=args.scenes_dir,
+        gpu_device_id=args.gpu_device_id,
     )
     try:
         run_navigation(env, policy, args, controller=controller)

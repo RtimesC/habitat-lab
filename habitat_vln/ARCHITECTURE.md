@@ -16,7 +16,7 @@ envs/habitat_env.py             create environment, execute named action
 envs/habitat_state.py           RGB/depth + simulator state -> navigation state
         |
         v
-policies/                       Mock / Qwen advisor / NaVIDA controller
+policies/                       Mock / Qwen / NaVIDA / Official NaVIDA HTTP
         |
         v
 control/navigation_controller.py
@@ -43,8 +43,8 @@ arguments override the preset values.
 
 - `NavigationObservation` is the policy input: RGB, optional depth, instruction,
   step number, and structured navigation context.
-- `PolicyOutput` is the raw policy result: parsed action, original text, and a
-  validity flag.
+- `PolicyOutput` is the raw policy result: optional parsed action, original text,
+  validity flag, optional termination reason, and policy metadata.
 - `NavigationPolicy` documents the shared `predict(observation)` interface.
 
 ### `envs/`
@@ -69,10 +69,13 @@ This package is the stable import surface for:
 
 - `MockVLMPolicy`, used for plumbing tests;
 - `QwenVLMPolicy`, used as advisor or direct controller;
-- `NaVIDAChunkPolicy`, used for multi-frame action-chunk experiments.
+- `NaVIDAChunkPolicy`, used for local multi-frame action-chunk experiments;
+- `OfficialNaVIDAHTTPPolicy`, used to send only instruction, simulator step, and
+  lossless RGB PNG to a separately hosted Official NaVIDA process.
 
 The implementations and prompt templates live in `policies/vlm_policy.py`,
-`policies/navida_policy.py`, and `policies/prompts.py`.
+`policies/navida_policy.py`, `policies/official_navida_http_policy.py`, and
+`policies/prompts.py`.
 
 ### `control/`
 
@@ -86,12 +89,18 @@ navigation state. It returns `ControlDecision`, which keeps three values separat
 The success-radius guard remains privileged diagnostic behavior. Pure-policy and
 guarded results must be reported separately.
 
+Policies that explicitly declare the `paper_pure` protocol bypass this controller.
+Their valid atomic action is executed unchanged; invalid output terminates the
+episode without a simulator step or fallback action.
+
 ### `runtime/`
 
 - `scheduler.py` owns layered 5 Hz/0.5 Hz and joint 1 Hz timing behavior.
 - `navigation_runner.py` owns the episode and step loops.
+- The runner calls optional policy `start_episode()` and `close()` lifecycle hooks.
 - `recorder.py` owns the stable trajectory schema. The executed-action column is
-  `action`.
+  `action`; policy protocol, server decision metadata, latency, and termination
+  reasons are recorded alongside the existing fields.
 - `artifacts.py` owns run directories, frame overlays, and browser-compatible
   H.264 MP4 generation through ffmpeg, with an mp4v fallback.
 

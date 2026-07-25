@@ -406,6 +406,67 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
 `--force-stop-within-success-radius` is an optional privileged PointNav safety
 guard. Results using it must be reported separately from the pure NaVIDA policy.
 
+## Official NaVIDA HTTP Policy
+
+Official NaVIDA runs in a separate Python 3.10 server process. The Habitat-side
+Python 3.9 runtime connects to it over localhost and does not load Qwen,
+Transformers, a local checkpoint, or an adapter:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --dataset-split val_seen \
+  --official-navida-http \
+  --official-navida-url http://127.0.0.1:8008 \
+  --policy-protocol paper_pure
+```
+
+On native Linux, the renderer device from the task configuration is used by
+default. Under WSLg/Mesa, CUDA-to-EGL device matching may fail for device `0`.
+In that case, add `--gpu-device-id -1` so EGL selects the default WSLg renderer.
+This changes only Habitat rendering; the separate NaVIDA server continues to
+use its configured CUDA device.
+
+The adapter calls `POST /v1/episodes/start` after every environment reset. On
+each simulator step it calls `POST /v1/steps` with only the episode id,
+simulator step, instruction, and a lossless base64-encoded RGB PNG. Depth, pose,
+goal geometry, collision state, and other privileged simulator values are not
+sent to the server.
+
+`paper_pure` always uses joint scheduling. A valid atomic action, including an
+early `stop`, is sent directly to Habitat without geometric, success-radius, or
+anti-stuck overrides. An invalid response or HTTP failure ends that episode as
+failed without executing a fallback action. Server decision ids, inference
+status, latency, termination reason, and metadata are saved in
+`trajectory.csv`.
+
+### Grounded Habitat test-scene demo
+
+Use the dedicated entrypoint for the manually grounded
+`skokloster-castle.glb` engineering episode:
+
+```bash
+conda run -n habitat_vlm python -m habitat_vln.demos.run_grounded_navida_demo \
+  --official-navida-url http://127.0.0.1:8008 \
+  --official-navida-timeout 900 \
+  --gpu-device-id -1 \
+  --num-episodes 1 \
+  --max-steps 200
+```
+
+The default dataset is
+`data/datasets/pointnav/habitat_test_scene_grounded_demo/v1/{split}/{split}.json.gz`.
+If that default is missing, the runner creates it through the project dataset
+generator API. A custom `--dataset-path` is never generated or overwritten.
+The instruction comes from `episode.info["instruction"]` unless
+`--instruction` explicitly overrides it.
+
+Each invocation creates an independent run directory containing
+`trajectory.csv`, `episode_summary.json`, `summary.md`, reviewable RGB frames,
+and `run.mp4` when video encoding is available. This is a Habitat test-scene
+engineering demo with `benchmark_comparable=false`; it is not an R2R, RxR,
+MP3D, or HM3D benchmark result. The Oracle route validation is an environment
+upper-bound check and must be kept separate from the Official NaVIDA result.
+
 ## HM3D NaVIDA Engineering Pipeline
 
 Use `habitat_vln.pipelines.hm3d_navida_pipeline` to run the HM3D-only workflow

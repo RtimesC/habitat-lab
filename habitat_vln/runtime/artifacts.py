@@ -1,6 +1,5 @@
 """Run-directory, frame-overlay, and video artifact helpers."""
 
-import glob
 import os
 import shutil
 import subprocess
@@ -12,12 +11,14 @@ import numpy as np
 
 def prepare_run_dir(output_dir):
     """Create a timestamped run directory and its frame directory."""
-    run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
+    run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S_%f")
     run_dir = os.path.join(output_dir, run_name)
+    suffix = 1
+    while os.path.exists(run_dir):
+        run_dir = os.path.join(output_dir, f"{run_name}_{suffix:02d}")
+        suffix += 1
     frame_dir = os.path.join(run_dir, "frames")
-    os.makedirs(frame_dir, exist_ok=True)
-    for old_frame in glob.glob(os.path.join(frame_dir, "frame_*.jpg")):
-        os.remove(old_frame)
+    os.makedirs(frame_dir)
     return run_dir, frame_dir
 
 

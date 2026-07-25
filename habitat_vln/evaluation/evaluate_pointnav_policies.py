@@ -346,6 +346,14 @@ def parse_args():
     parser.add_argument("--width", type=int, default=224)
     parser.add_argument("--height", type=int, default=224)
     parser.add_argument("--hfov", type=int, default=90)
+    parser.add_argument(
+        "--gpu-device-id",
+        type=int,
+        help=(
+            "Override the Habitat-Sim renderer GPU device id. "
+            "Use -1 to let EGL select the available device."
+        ),
+    )
     parser.add_argument("--instruction", default=DEFAULT_INSTRUCTION)
     parser.add_argument("--goal")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
@@ -388,6 +396,7 @@ def main():
             dataset_split=args.dataset_split,
             dataset_path=args.dataset_path,
             scenes_dir=args.scenes_dir,
+            gpu_device_id=args.gpu_device_id,
         )
         try:
             if policy_name == "qwen_advisor":

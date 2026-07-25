@@ -30,6 +30,7 @@ class HabitatEnvironmentConfig:
     dataset_split: Optional[str] = None
     dataset_path: Optional[str] = None
     scenes_dir: Optional[str] = None
+    gpu_device_id: Optional[int] = None
 
 
 def create_habitat_env(settings):
@@ -45,6 +46,10 @@ def create_habitat_env(settings):
         if settings.scenes_dir is not None:
             config.habitat.dataset.scenes_dir = os.path.expanduser(
                 settings.scenes_dir
+            )
+        if settings.gpu_device_id is not None:
+            config.habitat.simulator.habitat_sim_v0.gpu_device_id = (
+                settings.gpu_device_id
             )
         if settings.scene is not None:
             config.habitat.simulator.scene = os.path.expanduser(settings.scene)
@@ -67,6 +72,7 @@ def build_env(
     dataset_split=None,
     dataset_path=None,
     scenes_dir=None,
+    gpu_device_id=None,
 ):
     """Compatibility wrapper around :func:`create_habitat_env`."""
     return create_habitat_env(
@@ -79,6 +85,7 @@ def build_env(
             dataset_split=dataset_split,
             dataset_path=dataset_path,
             scenes_dir=scenes_dir,
+            gpu_device_id=gpu_device_id,
         )
     )
 
