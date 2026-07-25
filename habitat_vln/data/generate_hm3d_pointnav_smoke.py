@@ -1,16 +1,16 @@
 """Generate a small HM3D PointNav dataset for engineering smoke tests."""
 
 import argparse
-from collections import Counter
 import gzip
 import json
 import math
 import random
+from collections import Counter
 from pathlib import Path
 
-import habitat_sim
 import numpy as np
 
+import habitat_sim
 
 DEFAULT_SCENE_ROOT = Path("data/versioned_data/hm3d-0.2")
 DEFAULT_OUTPUT = Path("data/datasets/pointnav/hm3d_smoke/v1/val/val.json.gz")
@@ -139,7 +139,8 @@ def route_metrics(pathfinder, path, turn_threshold_deg, clearance_threshold):
         for point in route_samples
     ]
     low_clearance_fraction = (
-        sum(value <= clearance_threshold for value in clearances) / len(clearances)
+        sum(value <= clearance_threshold for value in clearances)
+        / len(clearances)
         if clearances
         else 0.0
     )
@@ -303,7 +304,9 @@ def selected_scene_paths(args):
     if args.scene and args.scenes:
         raise ValueError("Use either --scene or --scenes, not both.")
     if args.all_scenes and (args.scene or args.scenes):
-        raise ValueError("--all-scenes cannot be combined with --scene/--scenes.")
+        raise ValueError(
+            "--all-scenes cannot be combined with --scene/--scenes."
+        )
     if args.scene:
         return [args.scene]
     if args.scenes:
@@ -347,7 +350,9 @@ def main():
     parser.add_argument("--min-route-turns", type=int, default=2)
     parser.add_argument("--turn-threshold-deg", type=float, default=30.0)
     parser.add_argument("--clearance-threshold", type=float, default=0.65)
-    parser.add_argument("--min-low-clearance-fraction", type=float, default=0.7)
+    parser.add_argument(
+        "--min-low-clearance-fraction", type=float, default=0.7
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(
         "--dataset-scope",
@@ -373,7 +378,9 @@ def main():
     if args.clearance_threshold <= 0:
         raise ValueError("--clearance-threshold must be positive")
     if not 0.0 <= args.min_low_clearance_fraction <= 1.0:
-        raise ValueError("--min-low-clearance-fraction must be between 0 and 1")
+        raise ValueError(
+            "--min-low-clearance-fraction must be between 0 and 1"
+        )
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -438,7 +445,8 @@ def main():
             "route_profile_counts": dict(
                 sorted(
                     Counter(
-                        episode["info"]["route_profile"] for episode in episodes
+                        episode["info"]["route_profile"]
+                        for episode in episodes
                     ).items()
                 )
             ),

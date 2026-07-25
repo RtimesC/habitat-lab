@@ -21,7 +21,9 @@ def navigation_state(**overrides):
 
 class NavigationControllerTest(unittest.TestCase):
     def test_advisor_action_is_converted_by_geometry(self):
-        controller = NavigationController(ControllerConfig(qwen_role="advisor"))
+        controller = NavigationController(
+            ControllerConfig(qwen_role="advisor")
+        )
 
         decision = controller.decide(
             PolicyOutput("follow_goal", "raw", True),
@@ -37,7 +39,9 @@ class NavigationControllerTest(unittest.TestCase):
         self.assertEqual(decision.action, "turn_right")
 
     def test_anti_stuck_override_moves_forward(self):
-        controller = NavigationController(ControllerConfig(qwen_role="controller"))
+        controller = NavigationController(
+            ControllerConfig(qwen_role="controller")
+        )
 
         decision = controller.decide(
             PolicyOutput("turn_left", "raw", True),
@@ -54,7 +58,9 @@ class NavigationControllerTest(unittest.TestCase):
         self.assertIn("anti_stuck_override", decision.policy_output.raw_text)
 
     def test_early_stop_is_rejected(self):
-        controller = NavigationController(ControllerConfig(qwen_role="controller"))
+        controller = NavigationController(
+            ControllerConfig(qwen_role="controller")
+        )
 
         decision = controller.decide(
             PolicyOutput("stop", "raw", True),

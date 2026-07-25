@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 import numpy as np
+
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 
@@ -39,7 +40,9 @@ def depth_sensor_config(env):
     return {
         "min_depth": float(getattr(depth_sensor, "min_depth", 0.0)),
         "max_depth": float(getattr(depth_sensor, "max_depth", 10.0)),
-        "normalize_depth": bool(getattr(depth_sensor, "normalize_depth", True)),
+        "normalize_depth": bool(
+            getattr(depth_sensor, "normalize_depth", True)
+        ),
     }
 
 
@@ -132,7 +135,9 @@ def pointgoal_from_agent_state(env, agent_state, goal_position):
     if goal_position is None:
         return None
 
-    direction_world = goal_position - np.asarray(agent_state.position, dtype=np.float32)
+    direction_world = goal_position - np.asarray(
+        agent_state.position, dtype=np.float32
+    )
     direction_agent = quaternion_rotate_vector(
         agent_state.rotation.inverse(),
         direction_world,
@@ -191,7 +196,9 @@ class HabitatNavigationState:
         """Return the dictionary format consumed by existing prompts and logs."""
         return {
             "step": self.step,
-            "agent_position": tuple(float(x) for x in self.agent_state.position),
+            "agent_position": tuple(
+                float(x) for x in self.agent_state.position
+            ),
             "agent_rotation": (
                 float(self.agent_state.rotation.x),
                 float(self.agent_state.rotation.y),
@@ -300,7 +307,9 @@ class NavigationStateBuilder:
             previous_action=previous_action,
             previous_action_count=previous_action_count,
             previous_collision=previous_collision,
-            distance_to_goal=optional_float(metrics.get("distance_to_goal", "")),
+            distance_to_goal=optional_float(
+                metrics.get("distance_to_goal", "")
+            ),
             no_progress_steps=no_progress_steps,
             depth_min=depth_min,
             depth_mean=depth_mean,

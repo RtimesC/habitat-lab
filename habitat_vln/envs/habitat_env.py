@@ -8,7 +8,6 @@ import habitat
 from habitat.config import read_write
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 
-
 DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"
 
 ACTION_MAP = {

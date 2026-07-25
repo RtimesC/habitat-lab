@@ -17,7 +17,6 @@ from .prompts import (
     build_navigation_prompt,
 )
 
-
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 
 
@@ -95,7 +94,9 @@ class QwenVLMPolicy:
             ) from exc
 
         self.torch = torch
-        self.processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+        self.processor = AutoProcessor.from_pretrained(
+            model_id, trust_remote_code=True
+        )
         model_cls = self._resolve_model_class()
         model_kwargs = {
             "torch_dtype": torch_dtype,
@@ -246,7 +247,9 @@ class QwenVLMPolicy:
         return action
 
     def _validate_allowed_actions(self, allowed_actions):
-        invalid_actions = set(allowed_actions) - (VALID_ACTIONS | ADVISORY_ACTIONS)
+        invalid_actions = set(allowed_actions) - (
+            VALID_ACTIONS | ADVISORY_ACTIONS
+        )
         if invalid_actions:
             raise ValueError(f"Invalid actions: {sorted(invalid_actions)}")
         if not allowed_actions:
@@ -283,7 +286,9 @@ def parse_action(text: str, allowed_actions=None) -> Optional[str]:
         if action in allowed_actions:
             return action
 
-    action_pattern = "|".join(re.escape(action) for action in sorted(allowed_actions))
+    action_pattern = "|".join(
+        re.escape(action) for action in sorted(allowed_actions)
+    )
     for action in re.findall(rf"\b({action_pattern})\b", cleaned):
         if action in allowed_actions:
             return action

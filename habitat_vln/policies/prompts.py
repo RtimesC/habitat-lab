@@ -83,9 +83,13 @@ def format_navigation_state(navigation_context):
     return "\n".join(rows)
 
 
-def build_navigation_prompt(instruction, allowed_actions, navigation_context=None):
+def build_navigation_prompt(
+    instruction, allowed_actions, navigation_context=None
+):
     allowed_actions = set(allowed_actions)
-    action_list = "\n".join(f"- {action}" for action in sorted(allowed_actions))
+    action_list = "\n".join(
+        f"- {action}" for action in sorted(allowed_actions)
+    )
     example_action = sorted(allowed_actions)[0]
 
     if allowed_actions <= ADVISORY_ACTIONS:
@@ -104,17 +108,13 @@ def build_navigation_prompt(instruction, allowed_actions, navigation_context=Non
             "collision suggests an avoidance turn."
         )
     elif "stop" in allowed_actions:
-        mode_rules = (
-            "You are the low-level controller. Choose one executable Habitat action."
-        )
+        mode_rules = "You are the low-level controller. Choose one executable Habitat action."
         stop_rule = (
             "Choose stop only when goal_distance_m is below success_distance_m.\n"
             "Otherwise keep navigating with turn_left, turn_right, or move_forward."
         )
     else:
-        mode_rules = (
-            "You are the low-level controller. Choose one executable Habitat action."
-        )
+        mode_rules = "You are the low-level controller. Choose one executable Habitat action."
         stop_rule = (
             "Continue moving unless movement is impossible. If forward motion is "
             "blocked, choose turn_left or turn_right."

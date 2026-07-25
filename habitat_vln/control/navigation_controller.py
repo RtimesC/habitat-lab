@@ -11,7 +11,9 @@ except ImportError:
     from policies.prompts import VALID_ACTIONS
 
 
-def navigation_fallback_action(goal_angle_deg, previous_collision, depth_center_m):
+def navigation_fallback_action(
+    goal_angle_deg, previous_collision, depth_center_m
+):
     """Choose a conservative action when a requested action cannot be used."""
     if goal_angle_deg is not None:
         if goal_angle_deg < -15.0:
@@ -50,8 +52,12 @@ def geometric_navigation_action(
         return "stop"
 
     if previous_collision:
-        if isinstance(depth_left_m, float) and isinstance(depth_right_m, float):
-            return "turn_left" if depth_left_m >= depth_right_m else "turn_right"
+        if isinstance(depth_left_m, float) and isinstance(
+            depth_right_m, float
+        ):
+            return (
+                "turn_left" if depth_left_m >= depth_right_m else "turn_right"
+            )
         return navigation_fallback_action(
             goal_angle_deg,
             previous_collision,
@@ -65,8 +71,12 @@ def geometric_navigation_action(
             return "turn_right"
 
     if not enough_depth(depth_center_m, forward_safe_depth_m):
-        if isinstance(depth_left_m, float) and isinstance(depth_right_m, float):
-            return "turn_left" if depth_left_m >= depth_right_m else "turn_right"
+        if isinstance(depth_left_m, float) and isinstance(
+            depth_right_m, float
+        ):
+            return (
+                "turn_left" if depth_left_m >= depth_right_m else "turn_right"
+            )
         return navigation_fallback_action(
             goal_angle_deg,
             previous_collision,
@@ -88,7 +98,10 @@ def action_from_advice(
 ):
     """Convert Qwen advisor output into one atomic controller action."""
     if advice == "stop_if_reached":
-        if goal_distance_m is not None and goal_distance_m < success_distance_m:
+        if (
+            goal_distance_m is not None
+            and goal_distance_m < success_distance_m
+        ):
             return "stop"
         return geometric_navigation_action(
             goal_distance_m,

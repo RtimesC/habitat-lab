@@ -10,17 +10,34 @@ from types import SimpleNamespace
 import cv2
 import numpy as np
 
-from habitat_vln.core import NavigationObservation, NavigationPolicy, PolicyOutput
-from habitat_vln.envs import ACTION_MAP, NavigationStateBuilder, step_navigation_action
-from habitat_vln.policies import ActionChunkOutput, MockVLMPolicy, NaVIDAChunkPolicy
-from habitat_vln.runtime import TRAJECTORY_FIELDS, TrajectoryRecorder, write_video
+from habitat_vln.core import (
+    NavigationObservation,
+    NavigationPolicy,
+    PolicyOutput,
+)
+from habitat_vln.envs import (
+    ACTION_MAP,
+    NavigationStateBuilder,
+    step_navigation_action,
+)
+from habitat_vln.policies import (
+    ActionChunkOutput,
+    MockVLMPolicy,
+    NaVIDAChunkPolicy,
+)
+from habitat_vln.runtime import (
+    TRAJECTORY_FIELDS,
+    TrajectoryRecorder,
+    write_video,
+)
 
 
 class HabitatVLNInterfaceTest(unittest.TestCase):
     def test_habitat_action_adapter_executes_named_action(self):
         executed_actions = []
         env = SimpleNamespace(
-            step=lambda action: executed_actions.append(action) or {"rgb": "next"}
+            step=lambda action: executed_actions.append(action)
+            or {"rgb": "next"}
         )
 
         observation = step_navigation_action(env, "turn_left")
@@ -88,7 +105,9 @@ class HabitatVLNInterfaceTest(unittest.TestCase):
             no_progress_steps=1,
         )
         context = state.as_navigation_context()
-        policy_observation = state.as_policy_observation(obs, "Move to the goal.")
+        policy_observation = state.as_policy_observation(
+            obs, "Move to the goal."
+        )
 
         self.assertAlmostEqual(state.goal_distance_m, 5.0)
         self.assertAlmostEqual(state.goal_angle_deg, 30.0, places=4)

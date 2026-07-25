@@ -16,7 +16,6 @@ from ..data.training_data import (
     training_prompt,
 )
 
-
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/qwen_qlora"
 
@@ -63,9 +62,10 @@ class QwenNavigationCollator:
         return messages
 
     def __call__(self, records):
-        import torch
-
-        images = [Image.open(record["_image_path"]).convert("RGB") for record in records]
+        images = [
+            Image.open(record["_image_path"]).convert("RGB")
+            for record in records
+        ]
         try:
             full_texts = [
                 self.processor.apply_chat_template(
@@ -118,7 +118,9 @@ def resolve_model_class(transformers_module):
         model_class = getattr(transformers_module, class_name, None)
         if model_class is not None:
             return model_class
-    raise RuntimeError("installed transformers has no compatible Qwen2.5-VL class")
+    raise RuntimeError(
+        "installed transformers has no compatible Qwen2.5-VL class"
+    )
 
 
 def require_training_dependencies():
@@ -162,7 +164,9 @@ def validate_and_split(args):
 
 def run_self_test():
     """Exercise schema validation, prompt creation, and episode-safe splitting."""
-    with tempfile.TemporaryDirectory(prefix="habitat_vln_training_") as temp_dir:
+    with tempfile.TemporaryDirectory(
+        prefix="habitat_vln_training_"
+    ) as temp_dir:
         root = Path(temp_dir)
         image_path = root / "frame.jpg"
         Image.new("RGB", (32, 32), color=(64, 96, 128)).save(image_path)
@@ -191,9 +195,13 @@ def run_self_test():
             for record in records:
                 handle.write(json.dumps(record) + "\n")
         loaded = load_manifests([manifest_path])
-        train_records, validation_records = split_by_episode(loaded, 0.5, seed=42)
+        train_records, validation_records = split_by_episode(
+            loaded, 0.5, seed=42
+        )
         if not train_records or not validation_records:
-            raise AssertionError("self-test split must contain train and validation data")
+            raise AssertionError(
+                "self-test split must contain train and validation data"
+            )
         if not training_prompt(loaded[0]) or not assistant_answer(loaded[0]):
             raise AssertionError("self-test prompt formatting failed")
     print("training pipeline self-test passed")
@@ -260,7 +268,9 @@ def train(args, train_records, validation_records):
         args=training_args,
         train_dataset=NavigationDataset(train_records),
         eval_dataset=(
-            NavigationDataset(validation_records) if validation_records else None
+            NavigationDataset(validation_records)
+            if validation_records
+            else None
         ),
         data_collator=QwenNavigationCollator(processor),
     )

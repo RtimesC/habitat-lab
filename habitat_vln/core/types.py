@@ -26,7 +26,9 @@ class NavigationObservation:
         if isinstance(rgb_or_observation, cls):
             return rgb_or_observation
         if instruction is None:
-            raise ValueError("instruction is required when passing a raw RGB image")
+            raise ValueError(
+                "instruction is required when passing a raw RGB image"
+            )
         return cls(
             rgb=rgb_or_observation,
             instruction=instruction,

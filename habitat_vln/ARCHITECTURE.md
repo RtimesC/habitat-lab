@@ -33,6 +33,10 @@ runtime/navigation_runner.py    closed-loop execution
 `habitat_vln_nav.py` is the primary CLI. It parses arguments, constructs the policy,
 controller, and Habitat environment, then calls `run_navigation()`.
 
+Runtime defaults can be loaded from versioned YAML files under `configs/runtime/`.
+The YAML `arguments` mapping uses the same names as CLI options, and explicit CLI
+arguments override the preset values.
+
 ## Module contracts
 
 ### `core/`
@@ -143,6 +147,10 @@ Framework tests use Python's standard `unittest`, so they do not require pytest:
 conda run -n habitat_vlm python -m unittest discover -v \
   -s test -p 'test_habitat_vln_*.py'
 ```
+
+`test_habitat_vln_end_to_end.py` runs the real CLI assembly, state builder, Mock
+policy, controller, recorder, frame writer, and video writer against a deterministic
+lightweight environment. It does not load a model or start a long simulation.
 
 Fast validation order:
 

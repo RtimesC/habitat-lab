@@ -6,7 +6,6 @@ import random
 from collections import Counter
 from pathlib import Path
 
-
 SCHEMA_VERSION = 1
 VALID_TASKS = {"vln", "ids"}
 VALID_ACTIONS = {"move_forward", "turn_left", "turn_right", "stop"}
@@ -90,7 +89,9 @@ def uniformly_sample_indices(last_index, maximum):
         return list(range(count))
     if maximum == 1:
         return [last_index]
-    return [round(index * last_index / (maximum - 1)) for index in range(maximum)]
+    return [
+        round(index * last_index / (maximum - 1)) for index in range(maximum)
+    ]
 
 
 def resolve_source_image(record, field, manifest_path):
@@ -114,7 +115,9 @@ def build_episode_samples(
         return []
     steps = [int(record["step"]) for record in records]
     if steps != list(range(steps[0], steps[0] + len(steps))):
-        raise ValueError(f"episode {records[0]['episode_id']} has non-contiguous steps")
+        raise ValueError(
+            f"episode {records[0]['episode_id']} has non-contiguous steps"
+        )
 
     episode_id = str(records[0]["episode_id"])
     episode_seed = int(
@@ -133,7 +136,9 @@ def build_episode_samples(
         end_index = chunk["end_index"]
         start_record = records[start_index]
         end_record = records[end_index]
-        history_indices = uniformly_sample_indices(start_index, max_history_frames)
+        history_indices = uniformly_sample_indices(
+            start_index, max_history_frames
+        )
         history_images = [
             str(resolve_source_image(records[index], "image", source_manifest))
             for index in history_indices
@@ -164,7 +169,9 @@ def build_episode_samples(
         )
 
         if "next_image" in end_record:
-            goal_image = resolve_source_image(end_record, "next_image", source_manifest)
+            goal_image = resolve_source_image(
+                end_record, "next_image", source_manifest
+            )
         elif end_index + 1 < len(records):
             goal_image = resolve_source_image(
                 records[end_index + 1], "image", source_manifest
@@ -238,13 +245,18 @@ def validate_record(record, manifest_path, line_number, require_images=True):
     if record["schema_version"] != SCHEMA_VERSION:
         raise ValueError(f"{location}: unsupported schema_version")
     if record["task"] not in VALID_TASKS:
-        raise ValueError(f"{location}: task must be one of {sorted(VALID_TASKS)}")
+        raise ValueError(
+            f"{location}: task must be one of {sorted(VALID_TASKS)}"
+        )
     expected_images = 2 if record["task"] == "ids" else None
     if not isinstance(record["images"], list) or not record["images"]:
         raise ValueError(f"{location}: images must be a non-empty list")
     if expected_images and len(record["images"]) != expected_images:
         raise ValueError(f"{location}: IDS samples require exactly two images")
-    if record["task"] == "vln" and not str(record.get("instruction", "")).strip():
+    if (
+        record["task"] == "vln"
+        and not str(record.get("instruction", "")).strip()
+    ):
         raise ValueError(f"{location}: VLN instruction must not be empty")
     if not record["atomic_actions"]:
         raise ValueError(f"{location}: atomic_actions must not be empty")
@@ -276,7 +288,9 @@ def load_manifest(manifest_path, max_samples=None, require_images=True):
                 continue
             record = json.loads(line)
             records.append(
-                validate_record(record, manifest_path, line_number, require_images)
+                validate_record(
+                    record, manifest_path, line_number, require_images
+                )
             )
             if max_samples is not None and len(records) >= max_samples:
                 break
@@ -294,7 +308,9 @@ def split_by_episode(records, validation_ratio=0.1, seed=42):
     validation_ids = {
         episode_id
         for episode_id in episode_ids
-        if int(hashlib.sha256(f"{seed}:{episode_id}".encode()).hexdigest()[:8], 16)
+        if int(
+            hashlib.sha256(f"{seed}:{episode_id}".encode()).hexdigest()[:8], 16
+        )
         % 10000
         < threshold
     }
@@ -303,8 +319,14 @@ def split_by_episode(records, validation_ratio=0.1, seed=42):
             validation_ids.add(episode_ids[-1])
         if len(validation_ids) == len(episode_ids):
             validation_ids.remove(episode_ids[0])
-    train = [record for record in records if record["episode_id"] not in validation_ids]
-    validation = [record for record in records if record["episode_id"] in validation_ids]
+    train = [
+        record
+        for record in records
+        if record["episode_id"] not in validation_ids
+    ]
+    validation = [
+        record for record in records if record["episode_id"] in validation_ids
+    ]
     return train, validation
 
 
@@ -336,7 +358,11 @@ def dataset_summary(records):
         "tasks": dict(sorted(task_counts.items())),
         "unique_chunks": len(
             {
-                (record["episode_id"], record["start_step"], record["end_step"])
+                (
+                    record["episode_id"],
+                    record["start_step"],
+                    record["end_step"],
+                )
                 for record in records
             }
         ),

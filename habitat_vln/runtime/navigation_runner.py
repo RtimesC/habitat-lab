@@ -8,18 +8,21 @@ import cv2
 try:
     from ..control import ControllerConfig, NavigationController
     from ..core import PolicyOutput
-    from ..envs import NavigationStateBuilder, optional_float, step_navigation_action
+    from ..envs import (
+        NavigationStateBuilder,
+        optional_float,
+        step_navigation_action,
+    )
 except ImportError:
     from control import ControllerConfig, NavigationController
     from core import PolicyOutput
-    from envs import NavigationStateBuilder, optional_float, step_navigation_action
+    from envs import (
+        NavigationStateBuilder,
+        optional_float,
+        step_navigation_action,
+    )
 
-from .artifacts import (
-    draw_status,
-    prepare_run_dir,
-    rgb_to_bgr,
-    write_video,
-)
+from .artifacts import draw_status, prepare_run_dir, rgb_to_bgr, write_video
 from .recorder import TrajectoryRecorder
 from .scheduler import (
     BackgroundPolicyInference,
@@ -99,7 +102,9 @@ def run_navigation(env, policy, args, controller=None):
     run_dir, frame_dir = prepare_run_dir(args.output_dir)
     trajectory_path = os.path.join(run_dir, "trajectory.csv")
     state_builder = NavigationStateBuilder(env)
-    controller = controller or NavigationController(ControllerConfig.from_args(args))
+    controller = controller or NavigationController(
+        ControllerConfig.from_args(args)
+    )
     vision_hz, inference_hz = active_frequencies(args)
     video_fps = args.video_fps if args.video_fps is not None else vision_hz
 
@@ -114,7 +119,9 @@ def run_navigation(env, policy, args, controller=None):
             episode_fallback = (
                 episode_instruction_text(env.current_episode) or args.goal
             )
-            instruction = args.instruction or instruction_text(obs, episode_fallback)
+            instruction = args.instruction or instruction_text(
+                obs, episode_fallback
+            )
             episode_frame_dir = os.path.join(
                 frame_dir,
                 f"episode_{episode_index:03d}",
@@ -223,7 +230,9 @@ def run_navigation(env, policy, args, controller=None):
                         logical_time_sec,
                     )
                 decision_age_steps = (
-                    "" if last_inference_step is None else step - last_inference_step
+                    ""
+                    if last_inference_step is None
+                    else step - last_inference_step
                 )
                 decision_age_sec = (
                     ""
@@ -245,7 +254,9 @@ def run_navigation(env, policy, args, controller=None):
                 controller_action = control_decision.controller_action
                 action_name = control_decision.action
                 policy_output = control_decision.policy_output
-                if action_name != vlm_action and hasattr(policy, "clear_action_queue"):
+                if action_name != vlm_action and hasattr(
+                    policy, "clear_action_queue"
+                ):
                     policy.clear_action_queue()
 
                 obs = step_navigation_action(env, action_name)
@@ -253,7 +264,9 @@ def run_navigation(env, policy, args, controller=None):
                 collision_count += int(collision)
                 stopped = action_name == "stop"
                 metrics = env.get_metrics()
-                next_distance = optional_float(metrics.get("distance_to_goal", ""))
+                next_distance = optional_float(
+                    metrics.get("distance_to_goal", "")
+                )
                 action_distance_delta = (
                     None
                     if navigation_state.distance_to_goal is None
@@ -311,7 +324,9 @@ def run_navigation(env, policy, args, controller=None):
                     "image": image_path,
                 }
                 row.update(episode_values(env, episode_index, instruction))
-                row.update(agent_values_from_state(navigation_state.agent_state))
+                row.update(
+                    agent_values_from_state(navigation_state.agent_state)
+                )
                 row.update(metric_values(metrics))
                 recorder.write(row)
 

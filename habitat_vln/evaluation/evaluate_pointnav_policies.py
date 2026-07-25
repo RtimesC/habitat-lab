@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 
 import numpy as np
+
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
 from ..control import action_from_advice, geometric_navigation_action
@@ -14,14 +15,13 @@ from ..core import NavigationObservation
 from ..envs import (
     ACTION_MAP,
     NavigationStateBuilder,
-    build_navigation_context,
     build_env,
+    build_navigation_context,
     get_goal_position,
     optional_float,
 )
 from ..policies import DEFAULT_MODEL_ID, QwenVLMPolicy
 from ..runtime import instruction_text
-
 
 _STATE_API_COMPATIBILITY_EXPORTS = (build_navigation_context,)
 
@@ -31,7 +31,9 @@ DEFAULT_DATASET_PATH = (
     "data/datasets/pointnav/hm3d_smoke/v1/{split}/{split}.json.gz"
 )
 DEFAULT_SCENES_DIR = "data/versioned_data/hm3d-0.2"
-DEFAULT_INSTRUCTION = "Navigate to the target location and stop when you reach it."
+DEFAULT_INSTRUCTION = (
+    "Navigate to the target location and stop when you reach it."
+)
 DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/pointnav_policy_eval"
 
 ACTION_NAMES = {value: key for key, value in ACTION_MAP.items()}
@@ -61,7 +63,9 @@ def episode_geodesic_distance(episode):
 
 
 def make_run_dir(output_dir):
-    run_dir = os.path.join(output_dir, datetime.now().strftime("eval_%Y%m%d_%H%M%S"))
+    run_dir = os.path.join(
+        output_dir, datetime.now().strftime("eval_%Y%m%d_%H%M%S")
+    )
     os.makedirs(run_dir, exist_ok=True)
     return run_dir
 
@@ -77,20 +81,25 @@ def choose_action(policy_name, env, policy, obs, instruction, context):
         follower = policy
         goal_position = get_goal_position(env)
         return (
-            action_name_from_habitat_action(follower.get_next_action(goal_position)),
+            action_name_from_habitat_action(
+                follower.get_next_action(goal_position)
+            ),
             True,
         )
 
     if policy_name == "geometric":
-        return geometric_navigation_action(
-            context["goal_distance_m"],
-            context["goal_angle_deg"],
-            context["success_distance_m"],
-            context["previous_collision"],
-            context["depth_left_m"],
-            context["depth_center_m"],
-            context["depth_right_m"],
-        ), True
+        return (
+            geometric_navigation_action(
+                context["goal_distance_m"],
+                context["goal_angle_deg"],
+                context["success_distance_m"],
+                context["previous_collision"],
+                context["depth_left_m"],
+                context["depth_center_m"],
+                context["depth_right_m"],
+            ),
+            True,
+        )
 
     policy_output = policy.predict(
         NavigationObservation(
@@ -207,12 +216,16 @@ def run_policy(env, policy_name, policy, args):
             "policy": policy_name,
             "episode_index": episode_index,
             "episode_id": env.current_episode.episode_id,
-            "geodesic_distance": episode_geodesic_distance(env.current_episode),
+            "geodesic_distance": episode_geodesic_distance(
+                env.current_episode
+            ),
             "steps": steps_taken,
             "collisions": collisions,
             "success": float(final_metrics.get("success", 0.0)),
             "spl": float(final_metrics.get("spl", 0.0)),
-            "final_distance": float(final_metrics.get("distance_to_goal", np.nan)),
+            "final_distance": float(
+                final_metrics.get("distance_to_goal", np.nan)
+            ),
             "stopped": stopped,
             "invalid_policy_outputs": invalid_policy_outputs,
             "runtime_sec": time.perf_counter() - episode_start,
@@ -252,10 +265,14 @@ def summarize(rows, notes):
             {
                 "policy": policy_name,
                 "episodes": len(policy_rows),
-                "success": float(np.mean([row["success"] for row in policy_rows])),
+                "success": float(
+                    np.mean([row["success"] for row in policy_rows])
+                ),
                 "spl": float(np.mean([row["spl"] for row in policy_rows])),
                 "avg_geodesic_dist": float(
-                    np.nanmean([row["geodesic_distance"] for row in policy_rows])
+                    np.nanmean(
+                        [row["geodesic_distance"] for row in policy_rows]
+                    )
                 ),
                 "avg_collision": float(
                     np.mean([row["collisions"] for row in policy_rows])

@@ -5,7 +5,6 @@ import gzip
 import json
 from pathlib import Path
 
-
 DEFAULT_DATASET_ROOT = Path("data/datasets/vln/mp3d/r2r/v1")
 DEFAULT_SCENES_ROOT = Path("data/scene_datasets/mp3d")
 
@@ -29,8 +28,12 @@ def load_split(dataset_root, split):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset-root", type=Path, default=DEFAULT_DATASET_ROOT)
-    parser.add_argument("--scenes-root", type=Path, default=DEFAULT_SCENES_ROOT)
+    parser.add_argument(
+        "--dataset-root", type=Path, default=DEFAULT_DATASET_ROOT
+    )
+    parser.add_argument(
+        "--scenes-root", type=Path, default=DEFAULT_SCENES_ROOT
+    )
     parser.add_argument(
         "--splits",
         nargs="+",
@@ -48,7 +51,9 @@ def main():
             print(f"{split}: missing or empty ({path})")
             continue
 
-        scenes = sorted({scene_id_from_path(ep["scene_id"]) for ep in episodes})
+        scenes = sorted(
+            {scene_id_from_path(ep["scene_id"]) for ep in episodes}
+        )
         all_required_scenes.update(scenes)
         print(f"{split}: episodes={len(episodes)} scenes={len(scenes)}")
 

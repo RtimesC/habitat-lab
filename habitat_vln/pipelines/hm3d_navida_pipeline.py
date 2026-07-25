@@ -2,15 +2,14 @@
 
 import argparse
 import csv
-from collections import Counter
 import gzip
 import json
 import shlex
 import subprocess
 import sys
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = PROJECT_ROOT / "habitat_vln"
@@ -51,7 +50,9 @@ def record_stage(workspace, stage, **values):
 
 def run_command(command):
     print("running:", shlex.join(str(part) for part in command), flush=True)
-    subprocess.run([str(part) for part in command], cwd=PROJECT_ROOT, check=True)
+    subprocess.run(
+        [str(part) for part in command], cwd=PROJECT_ROOT, check=True
+    )
 
 
 def find_scenes(scene_root):
@@ -115,7 +116,9 @@ def latest_stage_path(workspace, stage, field):
         )
     path = Path(value)
     if not path.exists():
-        raise FileNotFoundError(f"Recorded pipeline artifact is missing: {path}")
+        raise FileNotFoundError(
+            f"Recorded pipeline artifact is missing: {path}"
+        )
     return path
 
 
@@ -235,10 +238,16 @@ def command_prepare(args):
 
 
 def command_collect(args):
-    train_dataset = latest_stage_path(args.workspace, "prepare", "train_dataset")
-    dataset_template = str(train_dataset.parent.parent / "{split}" / "{split}.json.gz")
+    train_dataset = latest_stage_path(
+        args.workspace, "prepare", "train_dataset"
+    )
+    dataset_template = str(
+        train_dataset.parent.parent / "{split}" / "{split}.json.gz"
+    )
     output_dir = args.workspace / "oracle"
-    before = set(output_dir.glob("collect_*")) if output_dir.exists() else set()
+    before = (
+        set(output_dir.glob("collect_*")) if output_dir.exists() else set()
+    )
     run_command(
         [
             sys.executable,
@@ -262,7 +271,9 @@ def command_collect(args):
     )
     created = sorted(set(output_dir.glob("collect_*")) - before)
     if len(created) != 1:
-        raise RuntimeError(f"Expected one new collection directory, found {created}")
+        raise RuntimeError(
+            f"Expected one new collection directory, found {created}"
+        )
     manifest = created[0] / "manifest.jsonl"
     if not manifest.is_file() or manifest.stat().st_size == 0:
         raise RuntimeError("Oracle collection produced no training records.")
@@ -288,7 +299,9 @@ def command_collect(args):
 def command_coverage(args):
     """Analyze state-action coverage before or after mixed-data selection."""
     if args.data == "oracle":
-        manifest = latest_stage_path(args.workspace, "collect", "source_manifest")
+        manifest = latest_stage_path(
+            args.workspace, "collect", "source_manifest"
+        )
     else:
         manifest = latest_stage_path(args.workspace, "build", "mixed_manifest")
     output_dir = args.workspace / "coverage" / f"{args.data}_{timestamp()}"
@@ -412,9 +425,13 @@ def command_offline_eval(args):
 def command_closed_loop(args):
     val_dataset = latest_stage_path(args.workspace, "prepare", "val_dataset")
     adapter = latest_stage_path(args.workspace, "train", "adapter_path")
-    dataset_template = str(val_dataset.parent.parent / "{split}" / "{split}.json.gz")
-    output_dir = args.workspace / "closed_loop" / (
-        "guarded" if args.guarded else "pure"
+    dataset_template = str(
+        val_dataset.parent.parent / "{split}" / "{split}.json.gz"
+    )
+    output_dir = (
+        args.workspace
+        / "closed_loop"
+        / ("guarded" if args.guarded else "pure")
     )
     command = [
         sys.executable,
@@ -454,7 +471,9 @@ def command_closed_loop(args):
     run_command(command)
     created = sorted(set(output_dir.glob("run_*")) - before)
     if len(created) != 1:
-        raise RuntimeError(f"Expected one closed-loop run directory, found {created}")
+        raise RuntimeError(
+            f"Expected one closed-loop run directory, found {created}"
+        )
     stage = "closed_loop_guarded" if args.guarded else "closed_loop_pure"
     record_stage(
         args.workspace,
@@ -477,7 +496,9 @@ def command_report(args):
         latest_stage_path(args.workspace, "build", "summary").read_text()
     )
     offline_summary = json.loads(
-        latest_stage_path(args.workspace, "offline_eval", "summary").read_text()
+        latest_stage_path(
+            args.workspace, "offline_eval", "summary"
+        ).read_text()
     )
     trajectory_path = latest_stage_path(
         args.workspace, "closed_loop_pure", "trajectory"
@@ -493,7 +514,9 @@ def command_report(args):
     closed_loop = {
         "episodes": len({row["episode_id"] for row in trajectory}),
         "steps": len(trajectory),
-        "collisions": sum(row.get("collision") == "True" for row in trajectory),
+        "collisions": sum(
+            row.get("collision") == "True" for row in trajectory
+        ),
         "success": float(final_row.get("success") or 0.0),
         "spl": float(final_row.get("spl") or 0.0),
         "start_distance": distances[0] if distances else None,
@@ -572,13 +595,17 @@ def parse_args():
     prepare.add_argument("--min-distance", type=float, default=2.0)
     prepare.add_argument("--max-distance", type=float, default=15.0)
     prepare.add_argument(
-        "--sampling-profile", choices=["random", "coverage"], default="coverage"
+        "--sampling-profile",
+        choices=["random", "coverage"],
+        default="coverage",
     )
     prepare.add_argument("--long-distance", type=float, default=8.0)
     prepare.add_argument("--min-route-turns", type=int, default=2)
     prepare.add_argument("--turn-threshold-deg", type=float, default=30.0)
     prepare.add_argument("--clearance-threshold", type=float, default=0.65)
-    prepare.add_argument("--min-low-clearance-fraction", type=float, default=0.7)
+    prepare.add_argument(
+        "--min-low-clearance-fraction", type=float, default=0.7
+    )
     prepare.add_argument(
         "--dataset-label", default="hm3d_engineering_scale_v1"
     )
@@ -589,7 +616,9 @@ def parse_args():
     collect.add_argument("--allow-failed-episodes", action="store_true")
 
     coverage = subparsers.add_parser("coverage")
-    coverage.add_argument("--data", choices=["oracle", "mixed"], default="oracle")
+    coverage.add_argument(
+        "--data", choices=["oracle", "mixed"], default="oracle"
+    )
     coverage.add_argument("--minimum-cell-count", type=int, default=10)
 
     build = subparsers.add_parser("build")

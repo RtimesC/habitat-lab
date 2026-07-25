@@ -2,7 +2,6 @@
 
 import csv
 
-
 TRAJECTORY_FIELDS = [
     "episode_index",
     "episode_id",
@@ -63,14 +62,17 @@ class TrajectoryRecorder:
         self._writer = None
 
     def __enter__(self):
-        self._handle = open(self.path, "w", newline="")
+        # This class is itself the context manager that owns the file handle.
+        self._handle = open(self.path, "w", newline="")  # noqa: SIM115
         self._writer = csv.DictWriter(self._handle, fieldnames=self.fieldnames)
         self._writer.writeheader()
         return self
 
     def write(self, row):
         if self._writer is None:
-            raise RuntimeError("TrajectoryRecorder must be used as a context manager")
+            raise RuntimeError(
+                "TrajectoryRecorder must be used as a context manager"
+            )
         self._writer.writerow(row)
 
     def __exit__(self, exc_type, exc_value, traceback):
