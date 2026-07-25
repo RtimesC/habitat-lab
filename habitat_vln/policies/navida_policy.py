@@ -16,7 +16,6 @@ except ImportError:
 
 from .vlm_policy import DEFAULT_MODEL_ID, PolicyOutput
 
-
 VALID_ACTIONS = {"move_forward", "turn_left", "turn_right", "stop"}
 
 
@@ -41,7 +40,9 @@ def parse_action_chunk(text, max_action_count=20):
             break
         except json.JSONDecodeError:
             continue
-    if not isinstance(payload, dict) or not isinstance(payload.get("actions"), list):
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("actions"), list
+    ):
         return None
 
     atomic_actions = []
@@ -94,7 +95,9 @@ class QwenNaVIDAModel:
             if model_class is not None:
                 break
         if model_class is None:
-            raise RuntimeError("installed transformers has no compatible Qwen class")
+            raise RuntimeError(
+                "installed transformers has no compatible Qwen class"
+            )
 
         model_kwargs = {
             "device_map": device_map,
@@ -103,7 +106,9 @@ class QwenNaVIDAModel:
         }
         if load_in_4bit:
             compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
-            model_kwargs["quantization_config"] = transformers.BitsAndBytesConfig(
+            model_kwargs[
+                "quantization_config"
+            ] = transformers.BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=compute_dtype,
@@ -119,14 +124,19 @@ class QwenNaVIDAModel:
     def generate_action_chunk(self, images, prompt):
         """Generate one action chunk from PIL/NumPy RGB images and a task prompt."""
         pil_images = [
-            image if isinstance(image, Image.Image) else Image.fromarray(np.asarray(image))
+            image
+            if isinstance(image, Image.Image)
+            else Image.fromarray(np.asarray(image))
             for image in images
         ]
         messages = [
             {
                 "role": "user",
                 "content": [
-                    *[{"type": "image", "image": image} for image in pil_images],
+                    *[
+                        {"type": "image", "image": image}
+                        for image in pil_images
+                    ],
                     {"type": "text", "text": prompt},
                 ],
             }
@@ -261,4 +271,6 @@ class NaVIDAChunkPolicy:
         executable = chunk.atomic_actions[: self.max_executed_actions]
         action = executable[0]
         self.action_queue = executable[1:]
-        return PolicyOutput(action=action, raw_text=chunk.raw_text, is_valid=True)
+        return PolicyOutput(
+            action=action, raw_text=chunk.raw_text, is_valid=True
+        )

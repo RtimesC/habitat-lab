@@ -2,7 +2,6 @@
 
 import csv
 
-
 TRAJECTORY_FIELDS = [
     "episode_index",
     "episode_id",
@@ -79,7 +78,8 @@ class TrajectoryRecorder:
         self._writer = None
 
     def __enter__(self):
-        self._handle = open(self.path, "w", newline="")
+        # This class is itself the context manager that owns the file handle.
+        self._handle = open(self.path, "w", newline="")  # noqa: SIM115
         self._writer = csv.DictWriter(self._handle, fieldnames=self.fieldnames)
         self._writer.writeheader()
         return self

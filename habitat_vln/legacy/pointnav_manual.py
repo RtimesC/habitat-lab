@@ -1,19 +1,24 @@
 """Legacy keyboard-controlled PointNav example."""
 
+import cv2
+
 import habitat
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
-import cv2
 
 FORWARD_KEY = "w"
 LEFT_KEY = "a"
 RIGHT_KEY = "d"
 FINISH = "f"
 
+
 def transform_rgb_bgr(image):
     return image[:, :, [2, 1, 0]]
 
+
 env = habitat.Env(
-    config=habitat.get_config("benchmark/nav/pointnav/pointnav_habitat_test.yaml")
+    config=habitat.get_config(
+        "benchmark/nav/pointnav/pointnav_habitat_test.yaml"
+    )
 )
 
 print("Environment creation successful")

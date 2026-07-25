@@ -20,10 +20,14 @@ def load_source_records(manifest_path):
             try:
                 record = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise ValueError(f"{manifest_path}:{line_number}: {exc}") from exc
+                raise ValueError(
+                    f"{manifest_path}:{line_number}: {exc}"
+                ) from exc
             for field in ["episode_id", "step", "image", "action"]:
                 if field not in record:
-                    raise ValueError(f"{manifest_path}:{line_number}: missing {field}")
+                    raise ValueError(
+                        f"{manifest_path}:{line_number}: missing {field}"
+                    )
             episodes[str(record["episode_id"])].append(record)
     if not episodes:
         raise ValueError("source manifest contains no records")
@@ -70,7 +74,9 @@ def limit_samples(samples, max_samples, strategy):
             selected_pairs[episode_id] = [pairs[index] for index in indices]
 
     selected = []
-    for pair_index in range(max(len(value) for value in selected_pairs.values())):
+    for pair_index in range(
+        max(len(value) for value in selected_pairs.values())
+    ):
         for episode_id in episode_order:
             pairs = selected_pairs[episode_id]
             if pair_index < len(pairs):
@@ -82,17 +88,22 @@ def limit_samples(samples, max_samples, strategy):
 
 def coverage_balanced_samples(samples, max_samples):
     """Greedily favor rare state-action cells, episodes, and scenes."""
-    pairs = [samples[offset : offset + 2] for offset in range(0, len(samples), 2)]
+    pairs = [
+        samples[offset : offset + 2] for offset in range(0, len(samples), 2)
+    ]
     candidates = []
     for index, pair in enumerate(pairs):
-        vln = next((sample for sample in pair if sample["task"] == "vln"), None)
+        vln = next(
+            (sample for sample in pair if sample["task"] == "vln"), None
+        )
         if vln is None:
             continue
         context = vln.get("navigation_context") or {}
         key = (
             bearing_bin(context.get("goal_angle_deg")),
             distance_bin(
-                context.get("goal_distance_m"), context.get("success_distance_m")
+                context.get("goal_distance_m"),
+                context.get("success_distance_m"),
             ),
             vln["atomic_actions"][0],
         )
@@ -176,7 +187,9 @@ def main():
         raise ValueError("--max-samples must be an even integer of at least 2")
     source_manifest = args.source_manifest.expanduser().resolve()
     if not source_manifest.is_file():
-        raise FileNotFoundError(f"source manifest does not exist: {source_manifest}")
+        raise FileNotFoundError(
+            f"source manifest does not exist: {source_manifest}"
+        )
     output_dir = (
         args.output_dir.expanduser().resolve()
         if args.output_dir
@@ -254,7 +267,9 @@ def main():
         }
     )
     summary_path = output_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     print(f"saved mixed manifest to {manifest_path}")
     print(f"saved episode report to {episode_path}")

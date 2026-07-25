@@ -10,7 +10,6 @@ from PIL import Image
 from ..data.navida_data import load_manifest, navigation_prompt
 from ..policies import QwenNaVIDAModel
 
-
 FIELDS = [
     "sample_id",
     "episode_id",
@@ -66,7 +65,10 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
         writer.writeheader()
         for index, record in enumerate(selected):
-            images = [Image.open(path).convert("RGB") for path in record["_image_paths"]]
+            images = [
+                Image.open(path).convert("RGB")
+                for path in record["_image_paths"]
+            ]
             try:
                 output = runtime.generate_action_chunk(
                     images, navigation_prompt(record)
@@ -86,7 +88,9 @@ def main():
                     bool(predicted) and predicted[0] == target[0]
                 ),
                 "target_actions": json.dumps(target, separators=(",", ":")),
-                "predicted_actions": json.dumps(predicted, separators=(",", ":")),
+                "predicted_actions": json.dumps(
+                    predicted, separators=(",", ":")
+                ),
                 "raw_text": output.raw_text,
             }
             writer.writerow(row)
@@ -99,7 +103,11 @@ def main():
 
     summary = {}
     for task in ["all", "vln", "ids"]:
-        task_rows = rows if task == "all" else [row for row in rows if row["task"] == task]
+        task_rows = (
+            rows
+            if task == "all"
+            else [row for row in rows if row["task"] == task]
+        )
         summary[task] = {
             "samples": len(task_rows),
             "valid_json_rate": sum(row["valid_json"] for row in task_rows)
@@ -112,7 +120,9 @@ def main():
             / len(task_rows),
         }
     summary_path = args.output_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     print(f"saved predictions to {prediction_path}")
 

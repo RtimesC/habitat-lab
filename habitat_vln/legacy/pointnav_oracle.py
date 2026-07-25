@@ -1,8 +1,10 @@
 """Legacy shortest-path Oracle PointNav example."""
 
-import os
 import csv
+import os
+
 import cv2
+
 import habitat
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
@@ -10,18 +12,36 @@ from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 OUT_DIR = "outputs/pointnav_oracle"
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
 def save_rgb(obs, step, action_name, distance, angle):
     rgb = obs["rgb"][:, :, [2, 1, 0]].copy()
-    cv2.putText(rgb, f"step={step} action={action_name}", (10, 25),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-    cv2.putText(rgb, f"distance={distance:.2f} angle={angle:.2f}", (10, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+    cv2.putText(
+        rgb,
+        f"step={step} action={action_name}",
+        (10, 25),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (255, 255, 255),
+        1,
+    )
+    cv2.putText(
+        rgb,
+        f"distance={distance:.2f} angle={angle:.2f}",
+        (10, 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (255, 255, 255),
+        1,
+    )
     path = f"{OUT_DIR}/frame_{step:03d}.png"
     cv2.imwrite(path, rgb)
     return path
 
+
 env = habitat.Env(
-    config=habitat.get_config("benchmark/nav/pointnav/pointnav_habitat_test.yaml")
+    config=habitat.get_config(
+        "benchmark/nav/pointnav/pointnav_habitat_test.yaml"
+    )
 )
 
 obs = env.reset()
@@ -61,7 +81,9 @@ with open(log_path, "w", newline="") as f:
         image_path = save_rgb(obs, step, action_name, distance, angle)
         writer.writerow([step, distance, angle, action_name, image_path])
 
-        print(f"step={step:03d}, distance={distance:.3f}, angle={angle:.3f}, action={action_name}")
+        print(
+            f"step={step:03d}, distance={distance:.3f}, angle={angle:.3f}, action={action_name}"
+        )
 
         obs = env.step(action)
 

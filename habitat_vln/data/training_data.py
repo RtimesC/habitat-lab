@@ -118,7 +118,9 @@ def load_manifests(manifest_paths, max_samples=None, require_images=True):
     for raw_path in manifest_paths:
         manifest_path = Path(raw_path).expanduser().resolve()
         if not manifest_path.is_file():
-            raise FileNotFoundError(f"manifest does not exist: {manifest_path}")
+            raise FileNotFoundError(
+                f"manifest does not exist: {manifest_path}"
+            )
         with manifest_path.open() as handle:
             for line_number, line in enumerate(handle, start=1):
                 if not line.strip():
@@ -126,7 +128,9 @@ def load_manifests(manifest_paths, max_samples=None, require_images=True):
                 try:
                     record = json.loads(line)
                 except json.JSONDecodeError as exc:
-                    raise ValueError(f"{manifest_path}:{line_number}: {exc}") from exc
+                    raise ValueError(
+                        f"{manifest_path}:{line_number}: {exc}"
+                    ) from exc
                 records.append(
                     validate_record(
                         record,
@@ -162,10 +166,14 @@ def split_by_episode(records, validation_ratio=0.1, seed=42):
             validation_episodes.remove(episode_ids[0])
 
     train_records = [
-        record for record in records if record["episode_id"] not in validation_episodes
+        record
+        for record in records
+        if record["episode_id"] not in validation_episodes
     ]
     validation_records = [
-        record for record in records if record["episode_id"] in validation_episodes
+        record
+        for record in records
+        if record["episode_id"] in validation_episodes
     ]
     return train_records, validation_records
 
@@ -176,5 +184,7 @@ def dataset_summary(records):
         "samples": len(records),
         "episodes": len({record["episode_id"] for record in records}),
         "scenes": len({record.get("scene_id", "") for record in records}),
-        "actions": dict(sorted(Counter(record["action"] for record in records).items())),
+        "actions": dict(
+            sorted(Counter(record["action"] for record in records).items())
+        ),
     }

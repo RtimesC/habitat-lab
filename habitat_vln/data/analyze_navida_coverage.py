@@ -6,7 +6,6 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-
 BEARING_BINS = ["strong_left", "left", "ahead", "right", "strong_right"]
 DISTANCE_BINS = ["arrived", "near", "mid", "far", "unknown"]
 ACTIONS = ["move_forward", "turn_left", "turn_right", "stop"]
@@ -71,7 +70,9 @@ def record_state_action(record):
         "previous_action": str(context.get("previous_action", "unknown")),
         "collided": bool(context.get("collided", False)),
         "no_progress_steps": int(context.get("no_progress_steps") or 0),
-        "previous_action_count": int(context.get("previous_action_count") or 0),
+        "previous_action_count": int(
+            context.get("previous_action_count") or 0
+        ),
     }
 
 
@@ -135,9 +136,7 @@ def build_report(rows, manifest, minimum_cell_count):
     ]
     core_counts = {key: len(cells.get(key, [])) for key in core_keys}
     recovery_rows = [
-        row
-        for row in rows
-        if row["collided"] or row["no_progress_steps"] >= 2
+        row for row in rows if row["collided"] or row["no_progress_steps"] >= 2
     ]
     collision_recovery_rows = [row for row in rows if row["collided"]]
     no_progress_recovery_rows = [
@@ -150,7 +149,9 @@ def build_report(rows, manifest, minimum_cell_count):
         "samples": len(rows),
         "episodes": len({row["episode_id"] for row in rows}),
         "scenes": len({row["scene_id"] for row in rows}),
-        "actions": dict(sorted(Counter(row["action"] for row in rows).items())),
+        "actions": dict(
+            sorted(Counter(row["action"] for row in rows).items())
+        ),
         "bearing_bins": dict(
             sorted(Counter(row["bearing_bin"] for row in rows).items())
         ),
@@ -181,9 +182,13 @@ def build_report(rows, manifest, minimum_cell_count):
         "observed_cell_rate": observed_cells / possible_cells,
         "minimum_cell_count": minimum_cell_count,
         "under_target_cells": sum(row["under_target"] for row in cell_rows),
-        "core_observed_cells": sum(count > 0 for count in core_counts.values()),
+        "core_observed_cells": sum(
+            count > 0 for count in core_counts.values()
+        ),
         "core_possible_cells": len(core_keys),
-        "core_observed_cell_rate": sum(count > 0 for count in core_counts.values())
+        "core_observed_cell_rate": sum(
+            count > 0 for count in core_counts.values()
+        )
         / len(core_keys),
         "core_under_target_cells": sum(
             count < minimum_cell_count for count in core_counts.values()

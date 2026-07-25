@@ -1,0 +1,20 @@
+schema_version: 1
+name: mock_hm3d_smoke
+description: Fast framework plumbing check without loading Qwen or NaVIDA.
+arguments:
+  task_config: benchmark/nav/pointnav/pointnav_hm3d.yaml
+  dataset_path: data/datasets/pointnav/hm3d_smoke/v1/{split}/{split}.json.gz
+  dataset_split: val
+  instruction: Navigate to the target location and stop when you reach it.
+  mock_policy: true
+  qwen_role: controller
+  frequency_mode: joint
+  joint_hz: 1.0
+  no_rate_limit: true
+  num_episodes: 1
+  max_steps: 20
+  width: 64
+  height: 64
+  hfov: 90
+  video_fps: 2.0
+  output_dir: habitat_vln/outputs/mock_hm3d_yaml

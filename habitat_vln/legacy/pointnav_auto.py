@@ -1,13 +1,16 @@
 """Legacy rule-based PointNav smoke example."""
 
-import os
 import csv
+import os
+
 import cv2
+
 import habitat
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 
 OUT_DIR = "outputs/pointnav_auto"
 os.makedirs(OUT_DIR, exist_ok=True)
+
 
 def save_rgb(obs, step):
     rgb_bgr = obs["rgb"][:, :, [2, 1, 0]]
@@ -15,8 +18,11 @@ def save_rgb(obs, step):
     cv2.imwrite(path, rgb_bgr)
     return path
 
+
 env = habitat.Env(
-    config=habitat.get_config("benchmark/nav/pointnav/pointnav_habitat_test.yaml")
+    config=habitat.get_config(
+        "benchmark/nav/pointnav/pointnav_habitat_test.yaml"
+    )
 )
 
 obs = env.reset()
@@ -45,7 +51,9 @@ with open(log_path, "w", newline="") as f:
             action_name = "move_forward"
 
         writer.writerow([step, distance, angle, action_name, image_path])
-        print(f"step={step:03d}, distance={distance:.3f}, angle={angle:.3f}, action={action_name}")
+        print(
+            f"step={step:03d}, distance={distance:.3f}, angle={angle:.3f}, action={action_name}"
+        )
 
         obs = env.step(action)
 

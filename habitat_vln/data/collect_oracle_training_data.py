@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 
 from ..envs import (
@@ -16,10 +17,11 @@ from ..envs import (
     depth_sensor_config,
     success_distance,
 )
-from ..evaluation.evaluate_pointnav_policies import action_name_from_habitat_action
+from ..evaluation.evaluate_pointnav_policies import (
+    action_name_from_habitat_action,
+)
 from ..runtime import episode_instruction_text, instruction_text, rgb_to_bgr
 from .training_data import make_record
-
 
 DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"
 DEFAULT_DATASET_PATH = "data/datasets/vln/mp3d/r2r/v1/{split}/{split}.json.gz"
@@ -47,7 +49,9 @@ EPISODE_FIELDS = [
 
 
 def make_run_dir(output_dir):
-    run_dir = Path(output_dir) / datetime.now().strftime("collect_%Y%m%d_%H%M%S")
+    run_dir = Path(output_dir) / datetime.now().strftime(
+        "collect_%Y%m%d_%H%M%S"
+    )
     (run_dir / "images").mkdir(parents=True, exist_ok=False)
     return run_dir
 
@@ -66,7 +70,9 @@ def collect_episode(env, episode_index, args, run_dir):
     episode_fallback = episode_instruction_text(episode)
     instruction = args.instruction or instruction_text(obs, episode_fallback)
     if not instruction:
-        raise RuntimeError(f"episode {episode_id} has no navigation instruction")
+        raise RuntimeError(
+            f"episode {episode_id} has no navigation instruction"
+        )
 
     goal_radius = success_distance(env)
     follower = ShortestPathFollower(
@@ -112,7 +118,9 @@ def collect_episode(env, episode_index, args, run_dir):
             follower.get_next_action(goal_position)
         )
         if action_name not in ACTION_MAP:
-            raise RuntimeError(f"Oracle returned unsupported action {action_name!r}")
+            raise RuntimeError(
+                f"Oracle returned unsupported action {action_name!r}"
+            )
 
         image_path = episode_dir / f"step_{step:04d}.jpg"
         next_image_path = episode_dir / f"step_{step + 1:04d}.jpg"
@@ -195,7 +203,9 @@ def parse_args():
     parser.add_argument("--width", type=int, default=224)
     parser.add_argument("--height", type=int, default=224)
     parser.add_argument("--hfov", type=int, default=90)
-    parser.add_argument("--instruction", help="Override every episode instruction.")
+    parser.add_argument(
+        "--instruction", help="Override every episode instruction."
+    )
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
         "--keep-failed-episodes",
@@ -229,8 +239,12 @@ def main():
             writer = csv.DictWriter(handle, fieldnames=EPISODE_FIELDS)
             writer.writeheader()
             for episode_index in range(args.num_episodes):
-                records, row = collect_episode(env, episode_index, args, run_dir)
-                include = row["valid_for_training"] or args.keep_failed_episodes
+                records, row = collect_episode(
+                    env, episode_index, args, run_dir
+                )
+                include = (
+                    row["valid_for_training"] or args.keep_failed_episodes
+                )
                 if include:
                     append_records(manifest_path, records)
                     included_samples += len(records)

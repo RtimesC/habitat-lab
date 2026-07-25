@@ -10,6 +10,7 @@ try:
         geometric_navigation_action,
         navigation_fallback_action,
     )
+    from .core import load_experiment_config
     from .envs import (
         ACTION_MAP,
         DEFAULT_TASK_CONFIG,
@@ -28,25 +29,24 @@ try:
         pointgoal_from_observation,
         pointgoal_state,
         success_distance,
-        step_navigation_action,
     )
     from .policies import (
         ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
         DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
+        VALID_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
         OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
-        VALID_ACTIONS,
     )
     from .runtime import (
         BackgroundPolicyInference,
         TrajectoryRecorder,
         active_frequencies,
-        agent_values_from_state,
         advance_inference_time,
+        agent_values_from_state,
         draw_status,
         episode_instruction_text,
         episode_values,
@@ -55,8 +55,8 @@ try:
         limit_loop_rate,
         metric_values,
         prepare_run_dir,
-        rgb_to_bgr,
         resolve_frequency_mode,
+        rgb_to_bgr,
         run_navigation,
         timed_policy_predict,
         validate_frequencies,
@@ -71,6 +71,7 @@ except ImportError:
         geometric_navigation_action,
         navigation_fallback_action,
     )
+    from core import load_experiment_config
     from envs import (
         ACTION_MAP,
         DEFAULT_TASK_CONFIG,
@@ -89,25 +90,24 @@ except ImportError:
         pointgoal_from_observation,
         pointgoal_state,
         success_distance,
-        step_navigation_action,
     )
     from policies import (
         ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
         DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
+        VALID_ACTIONS,
         MockVLMPolicy,
         NaVIDAChunkPolicy,
         OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
-        VALID_ACTIONS,
     )
     from runtime import (
         BackgroundPolicyInference,
         TrajectoryRecorder,
         active_frequencies,
-        agent_values_from_state,
         advance_inference_time,
+        agent_values_from_state,
         draw_status,
         episode_instruction_text,
         episode_values,
@@ -116,8 +116,8 @@ except ImportError:
         limit_loop_rate,
         metric_values,
         prepare_run_dir,
-        rgb_to_bgr,
         resolve_frequency_mode,
+        rgb_to_bgr,
         run_navigation,
         timed_policy_predict,
         validate_frequencies,
@@ -181,8 +181,15 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTPUT_DIR = os.path.join(PROJECT_DIR, "outputs")
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--experiment-config",
+        help=(
+            "YAML experiment preset. Values become defaults and explicit "
+            "command-line arguments take precedence."
+        ),
+    )
     parser.add_argument("--task-config", default=DEFAULT_TASK_CONFIG)
     parser.add_argument("--dataset-split")
     parser.add_argument("--dataset-path")
@@ -372,11 +379,37 @@ def parse_args():
             "Actions kept from each NaVIDA chunk. Joint 1 Hz replanning requires 1."
         ),
     )
-    return parser.parse_args()
+    config_args, _ = parser.parse_known_args(argv)
+    experiment_config = None
+    if config_args.experiment_config:
+        valid_arguments = {
+            action.dest
+            for action in parser._actions
+            if action.dest not in {"help", "experiment_config"}
+        }
+        experiment_config = load_experiment_config(
+            config_args.experiment_config,
+            valid_arguments,
+        )
+        parser.set_defaults(**experiment_config.arguments)
+
+    args = parser.parse_args(argv)
+    args.experiment_name = (
+        experiment_config.name if experiment_config is not None else ""
+    )
+    args.experiment_description = (
+        experiment_config.description if experiment_config is not None else ""
+    )
+    return args
 
 
 def main():
     args = parse_args()
+    if args.experiment_name:
+        print(
+            f"experiment={args.experiment_name} "
+            f"config={os.path.abspath(args.experiment_config)}"
+        )
     if args.official_navida_http:
         if args.frequency_mode == "layered":
             raise ValueError(
@@ -427,7 +460,9 @@ def main():
         )
     elif args.navida_chunk_policy:
         if args.qwen_role != "controller":
-            raise ValueError("--navida-chunk-policy requires --qwen-role controller")
+            raise ValueError(
+                "--navida-chunk-policy requires --qwen-role controller"
+            )
         if not args.adapter_path:
             raise ValueError("--navida-chunk-policy requires --adapter-path")
         if args.navida_max_executed_actions != 1:

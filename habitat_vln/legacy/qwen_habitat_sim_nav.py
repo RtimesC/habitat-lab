@@ -8,9 +8,10 @@ import re
 from pathlib import Path
 
 import cv2
-import habitat_sim
 import numpy as np
 from PIL import Image
+
+import habitat_sim
 
 try:
     from qwen_vl_utils import process_vision_info
@@ -25,7 +26,9 @@ VALID_ACTIONS = {
 }
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = PROJECT_DIR / "outputs" / "qwen_habitat_sim" / "qwen_navigation.mp4"
+DEFAULT_OUTPUT = (
+    PROJECT_DIR / "outputs" / "qwen_habitat_sim" / "qwen_navigation.mp4"
+)
 
 TRAJECTORY_FIELDS = [
     "step",
@@ -110,7 +113,9 @@ def create_simulator(scene_path: str, width: int, height: int):
 
         print("Start position:", start_position)
     else:
-        print("Warning: navmesh is not loaded; using the scene default position.")
+        print(
+            "Warning: navmesh is not loaded; using the scene default position."
+        )
 
     return sim
 
@@ -237,13 +242,15 @@ def trajectory_row(
     delta_x = post_pose["x"] - pre_pose["x"]
     delta_y = post_pose["y"] - pre_pose["y"]
     delta_z = post_pose["z"] - pre_pose["z"]
-    delta_distance_3d = math.sqrt(delta_x ** 2 + delta_y ** 2 + delta_z ** 2)
-    delta_distance_xz = math.sqrt(delta_x ** 2 + delta_z ** 2)
+    delta_distance_3d = math.sqrt(delta_x**2 + delta_y**2 + delta_z**2)
+    delta_distance_xz = math.sqrt(delta_x**2 + delta_z**2)
     delta_yaw = angle_delta(post_pose["yaw_rad"], pre_pose["yaw_rad"])
     forward_progress_ratio = ""
     if action == "MOVE_FORWARD":
         forward_progress_ratio = delta_distance_xz / 0.25
-    collision_estimate = action == "MOVE_FORWARD" and delta_distance_xz <= collision_epsilon
+    collision_estimate = (
+        action == "MOVE_FORWARD" and delta_distance_xz <= collision_epsilon
+    )
 
     return {
         "step": step,
@@ -369,7 +376,7 @@ Example:
         )
 
     generated_trimmed = [
-        output_ids[len(input_ids):]
+        output_ids[len(input_ids) :]
         for input_ids, output_ids in zip(
             inputs.input_ids,
             generated_ids,

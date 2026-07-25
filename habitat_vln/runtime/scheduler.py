@@ -36,7 +36,9 @@ def validate_frequencies(args):
         if value <= 0.0:
             raise ValueError(f"{name} must be greater than zero")
     if args.frequency_mode == "layered" and args.inference_hz > args.vision_hz:
-        raise ValueError("--inference-hz cannot exceed --vision-hz in layered mode")
+        raise ValueError(
+            "--inference-hz cannot exceed --vision-hz in layered mode"
+        )
     if args.frequency_mode == "layered" and args.qwen_role != "advisor":
         raise ValueError(
             "layered frequency mode requires --qwen-role advisor; "
@@ -49,7 +51,9 @@ def inference_is_due(logical_time_sec, next_inference_time_sec):
     return logical_time_sec + 1e-9 >= next_inference_time_sec
 
 
-def advance_inference_time(next_inference_time_sec, inference_hz, logical_time_sec):
+def advance_inference_time(
+    next_inference_time_sec, inference_hz, logical_time_sec
+):
     """Advance the inference deadline beyond the current logical time."""
     period_sec = 1.0 / inference_hz
     while next_inference_time_sec <= logical_time_sec + 1e-9:

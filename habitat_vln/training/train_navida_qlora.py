@@ -15,8 +15,10 @@ from ..data.navida_data import (
     navigation_prompt,
     split_by_episode,
 )
-from .train_qwen_qlora import require_training_dependencies, resolve_model_class
-
+from .train_qwen_qlora import (
+    require_training_dependencies,
+    resolve_model_class,
+)
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/navida_qlora"
@@ -64,7 +66,8 @@ class NaVIDACollator:
         images = []
         for record in records:
             images.extend(
-                Image.open(path).convert("RGB") for path in record["_image_paths"]
+                Image.open(path).convert("RGB")
+                for path in record["_image_paths"]
             )
         try:
             full_texts = [
@@ -154,7 +157,9 @@ def run_self_test():
     chunks_b = hierarchical_probabilistic_action_chunking(actions, seed=7)
     if chunks_a != chunks_b:
         raise AssertionError("HPAC must be reproducible for a fixed seed")
-    if [action for chunk in chunks_a for action in chunk["actions"]] != actions:
+    if [
+        action for chunk in chunks_a for action in chunk["actions"]
+    ] != actions:
         raise AssertionError("HPAC changed the atomic action sequence")
 
     with tempfile.TemporaryDirectory(prefix="navida_self_test_") as temp_dir:
@@ -162,7 +167,9 @@ def run_self_test():
         image_paths = []
         for index in range(3):
             image_path = root / f"frame_{index}.jpg"
-            Image.new("RGB", (32, 32), color=(40 * index, 80, 120)).save(image_path)
+            Image.new("RGB", (32, 32), color=(40 * index, 80, 120)).save(
+                image_path
+            )
             image_paths.append(image_path.name)
         common = {
             "schema_version": 1,
@@ -198,7 +205,9 @@ def run_self_test():
         if summary["tasks"] != {"ids": 1, "vln": 1}:
             raise AssertionError("mixed task counts are incorrect")
         if summary["trajectory_actions"] != {"move_forward": 2}:
-            raise AssertionError("trajectory actions must not double-count IDS labels")
+            raise AssertionError(
+                "trajectory actions must not double-count IDS labels"
+            )
         if not all(navigation_prompt(record) for record in loaded):
             raise AssertionError("task prompts must not be empty")
     print("NaVIDA data pipeline self-test passed")

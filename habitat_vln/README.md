@@ -29,6 +29,18 @@ templates live under `habitat_vln/policies/`.
 
 ## Standard VLN Run
 
+Versioned YAML presets are available under `habitat_vln/configs/runtime/`.
+Explicit command-line arguments override values from the selected preset:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --experiment-config habitat_vln/configs/runtime/mock_hm3d_smoke.yaml \
+  --max-steps 3
+```
+
+Each preset has four top-level fields: `schema_version`, `name`, `description`,
+and `arguments`. Unknown argument names fail immediately instead of being ignored.
+
 ```bash
 conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
   --dataset-split val_seen \
