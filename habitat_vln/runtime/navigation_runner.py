@@ -252,7 +252,9 @@ def _execute_navigation(
     controller: Any = None,
 ) -> str:
     """Run closed-loop navigation and return the saved trajectory path."""
-    run_dir, frame_dir = prepare_run_dir(args.output_dir)
+    run_dir, frame_dir = prepare_run_dir(
+        args.output_dir, getattr(args, "output_group", None)
+    )
     trajectory_path = os.path.join(run_dir, "trajectory.csv")
     state_builder = None
     policy_protocol = getattr(policy, "policy_protocol", None)
@@ -286,6 +288,15 @@ def _execute_navigation(
                 else f"episode_{episode_index:03d}.mp4"
             )
             episode_video_path = os.path.join(run_dir, episode_video_name)
+            robot_view_frame_dir = os.path.join(
+                run_dir,
+                "robot_view_frames",
+                f"episode_{episode_index:03d}",
+            )
+            robot_view_video_path = os.path.join(
+                run_dir,
+                f"robot_view_episode_{episode_index:03d}.mp4",
+            )
             episode_start_time = time.perf_counter()
             instruction = (
                 args.instruction if args.instruction is not None else ""
@@ -390,6 +401,7 @@ def _execute_navigation(
                 print(f"episode bootstrap failed: {bootstrap_error}")
                 break
             frame_paths = []
+            robot_view_frame_paths = []
             episode_steps = 0
             collision_count = 0
             stopped = False
@@ -438,6 +450,7 @@ def _execute_navigation(
                 wall_time_sec = step_start_time - episode_start_time
                 logical_time_sec = step / vision_hz
                 rgb = obs.get("rgb")
+                robot_view = obs.get("robot_view")
                 metrics_before_action = {}
                 try:
                     rgb = obs["rgb"]
@@ -713,6 +726,26 @@ def _execute_navigation(
                 )
                 if image_path:
                     frame_paths.append(image_path)
+                if robot_view is not None:
+                    os.makedirs(robot_view_frame_dir, exist_ok=True)
+                    robot_view_path, robot_view_error = save_rgb_frame(
+                        robot_view,
+                        os.path.join(
+                            robot_view_frame_dir,
+                            f"frame_{step:03d}.jpg",
+                        ),
+                        step,
+                        action_name,
+                        policy_output.is_valid,
+                        collision,
+                    )
+                    if robot_view_path:
+                        robot_view_frame_paths.append(robot_view_path)
+                    if robot_view_error:
+                        print(
+                            "warning: robot view frame was not written: "
+                            f"{robot_view_error}"
+                        )
                 if frame_error:
                     episode_failed = True
                     failure_reason = append_failure_reason(
@@ -866,6 +899,19 @@ def _execute_navigation(
                 video_written = False
                 video_error = str(exc)
                 print(f"warning: video was not written: {video_error}")
+            robot_view_video_written = False
+            if robot_view_frame_paths:
+                try:
+                    robot_view_video_written = write_video(
+                        robot_view_frame_paths,
+                        robot_view_video_path,
+                        video_fps,
+                    )
+                except Exception as exc:
+                    print(
+                        "warning: robot view video was not written: "
+                        f"{exc}"
+                    )
             try:
                 final_metrics = dict(env.get_metrics())
             except Exception as exc:
@@ -954,6 +1000,12 @@ def _execute_navigation(
                 if video_written
                 else "video was not written"
             )
+            if robot_view_frame_paths:
+                print(
+                    f"saved robot view video to {robot_view_video_path}"
+                    if robot_view_video_written
+                    else "robot view video was not written"
+                )
 
     if grounded_demo_artifacts:
         write_grounded_demo_artifacts(

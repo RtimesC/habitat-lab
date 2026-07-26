@@ -8,6 +8,13 @@ from .habitat_env import (
     create_habitat_env,
     step_navigation_action,
 )
+from .six_wheel_robot import (
+    ROBOT_BODY_NONE,
+    ROBOT_BODY_SIX_WHEEL,
+    ROBOT_VIEW_UUID,
+    SixWheelRobotConfig,
+    SixWheelRobotEnvironment,
+)
 from .habitat_state import (
     HabitatNavigationState,
     NavigationStateBuilder,
@@ -33,6 +40,11 @@ __all__ = [
     "HabitatEnvironmentConfig",
     "HabitatNavigationState",
     "NavigationStateBuilder",
+    "ROBOT_BODY_NONE",
+    "ROBOT_BODY_SIX_WHEEL",
+    "ROBOT_VIEW_UUID",
+    "SixWheelRobotConfig",
+    "SixWheelRobotEnvironment",
     "build_navigation_context",
     "build_env",
     "create_habitat_env",

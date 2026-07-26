@@ -34,7 +34,7 @@ DEFAULT_SCENES_DIR = "data/versioned_data/hm3d-0.2"
 DEFAULT_INSTRUCTION = (
     "Navigate to the target location and stop when you reach it."
 )
-DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/pointnav_policy_eval"
+DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/02_plumbing_and_smoke/pointnav_policy_eval"
 
 ACTION_NAMES = {value: key for key, value in ACTION_MAP.items()}
 

@@ -26,7 +26,9 @@ from .training_data import make_record
 DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"
 DEFAULT_DATASET_PATH = "data/datasets/vln/mp3d/r2r/v1/{split}/{split}.json.gz"
 DEFAULT_SCENES_DIR = "data/scene_datasets/mp3d"
-DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/oracle_training_data"
+DEFAULT_OUTPUT_DIR = (
+    "habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data"
+)
 
 EPISODE_FIELDS = [
     "episode_index",

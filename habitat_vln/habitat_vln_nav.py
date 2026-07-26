@@ -217,6 +217,29 @@ def parse_args(argv=None):
         help="Alias fallback for --instruction when an episode has no instruction sensor.",
     )
     parser.add_argument("--scene")
+    parser.add_argument(
+        "--robot-body",
+        choices=["none", "six_wheel"],
+        default="none",
+        help=(
+            "Optional visible robot body. six_wheel keeps the existing "
+            "navigation actions and mounts RGB-D on a six-wheel chassis."
+        ),
+    )
+    parser.add_argument(
+        "--robot-camera-height",
+        type=float,
+        default=0.62,
+        help="Six-wheel robot RGB-D camera height above the floor, in metres.",
+    )
+    parser.add_argument(
+        "--robot-debug-view",
+        action="store_true",
+        help=(
+            "Add a rear third-person robot_view camera and save robot_view "
+            "frames/video when --robot-body six_wheel is enabled."
+        ),
+    )
     parser.add_argument("--max-steps", type=int, default=40)
     parser.add_argument("--max-new-tokens", type=int, default=16)
     parser.add_argument("--device-map", default="auto")
@@ -232,6 +255,13 @@ def parse_args(argv=None):
         help="Compute dtype for bitsandbytes 4-bit quantization.",
     )
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--output-group",
+        help=(
+            "Optional one-level experiment group inside --output-dir. "
+            "For example: 07_six_wheel_visual."
+        ),
+    )
     parser.add_argument(
         "--video-fps",
         type=float,
@@ -342,6 +372,22 @@ def parse_args(argv=None):
         default=30.0,
         help="Only anti-stuck forward when the target angle is within this range.",
     )
+    parser.add_argument(
+        "--enable-forward-depth-guard",
+        action="store_true",
+        help=(
+            "Guarded evaluation: replace unsafe forward actions using the "
+            "current depth observation."
+        ),
+    )
+    parser.add_argument(
+        "--forward-depth-guard-threshold",
+        type=float,
+        default=0.35,
+        help=(
+            "Minimum center depth in metres for guarded move_forward actions."
+        ),
+    )
     policy_group = parser.add_mutually_exclusive_group()
     policy_group.add_argument("--mock-policy", action="store_true")
     policy_group.add_argument(
@@ -405,12 +451,20 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
+    if args.robot_camera_height <= 0:
+        raise ValueError("--robot-camera-height must be greater than zero")
     if args.experiment_name:
         print(
             f"experiment={args.experiment_name} "
             f"config={os.path.abspath(args.experiment_config)}"
         )
     if args.official_navida_http:
+        if args.enable_forward_depth_guard:
+            raise ValueError(
+                "--enable-forward-depth-guard cannot be used with "
+                "--official-navida-http because paper_pure runs bypass "
+                "the controller."
+            )
         if args.frequency_mode == "layered":
             raise ValueError(
                 "--official-navida-http requires joint frequency mode"
@@ -511,6 +565,9 @@ def main():
         dataset_path=args.dataset_path,
         scenes_dir=args.scenes_dir,
         gpu_device_id=args.gpu_device_id,
+        robot_body=args.robot_body,
+        robot_camera_height=args.robot_camera_height,
+        robot_debug_view=args.robot_debug_view,
     )
     try:
         run_navigation(env, policy, args, controller=controller)

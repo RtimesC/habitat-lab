@@ -143,6 +143,8 @@ class ControllerConfig:
     max_no_progress_steps: int = 2
     anti_stuck_forward_depth: float = 0.35
     anti_stuck_max_goal_angle: float = 30.0
+    enable_forward_depth_guard: bool = False
+    forward_depth_guard_threshold: float = 0.35
 
     @classmethod
     def from_args(cls, args):
@@ -160,6 +162,10 @@ class ControllerConfig:
             max_no_progress_steps=args.max_no_progress_steps,
             anti_stuck_forward_depth=args.anti_stuck_forward_depth,
             anti_stuck_max_goal_angle=args.anti_stuck_max_goal_angle,
+            enable_forward_depth_guard=args.enable_forward_depth_guard,
+            forward_depth_guard_threshold=(
+                args.forward_depth_guard_threshold
+            ),
         )
 
 
@@ -250,6 +256,51 @@ class NavigationController:
                 f"{output.raw_text}\n"
                 '{"anti_stuck_override": "move_forward"}'
             )
+            output.is_valid = False
+
+        if (
+            self.config.enable_forward_depth_guard
+            and action == "move_forward"
+            and not enough_depth(
+                navigation_state.depth_center_m,
+                self.config.forward_depth_guard_threshold,
+            )
+        ):
+            if isinstance(navigation_state.depth_left_m, float) and isinstance(
+                navigation_state.depth_right_m, float
+            ):
+                replacement_action = (
+                    "turn_left"
+                    if navigation_state.depth_left_m
+                    >= navigation_state.depth_right_m
+                    else "turn_right"
+                )
+            else:
+                replacement_action = navigation_fallback_action(
+                    navigation_state.goal_angle_deg,
+                    previous_collision=True,
+                    depth_center_m=navigation_state.depth_center_m,
+                )
+            messages.append(
+                "Forward depth guard; center depth is below the safety "
+                f"threshold, fallback to {replacement_action}"
+            )
+            guard_metadata = dict(output.metadata)
+            guard_metadata["forward_depth_guard"] = {
+                "threshold_m": self.config.forward_depth_guard_threshold,
+                "depth_left_m": navigation_state.depth_left_m,
+                "depth_center_m": navigation_state.depth_center_m,
+                "depth_right_m": navigation_state.depth_right_m,
+                "replacement_action": replacement_action,
+            }
+            action = replacement_action
+            controller_action = action
+            output.action = action
+            output.raw_text = (
+                f"{output.raw_text}\n"
+                f'{{"forward_depth_guard": "{replacement_action}"}}'
+            )
+            output.metadata = guard_metadata
             output.is_valid = False
 
         if (

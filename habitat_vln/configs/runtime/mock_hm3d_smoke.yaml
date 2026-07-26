@@ -17,4 +17,4 @@ arguments:
   height: 64
   hfov: 90
   video_fps: 2.0
-  output_dir: habitat_vln/outputs/mock_hm3d_yaml
+  output_dir: habitat_vln/outputs/02_plumbing_and_smoke/mock_hm3d_yaml

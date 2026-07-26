@@ -28,6 +28,7 @@ from habitat_vln.policies import (
 from habitat_vln.runtime import (
     TRAJECTORY_FIELDS,
     TrajectoryRecorder,
+    prepare_run_dir,
     write_video,
 )
 
@@ -198,6 +199,17 @@ class HabitatVLNInterfaceTest(unittest.TestCase):
 
             self.assertEqual(reader.fieldnames, TRAJECTORY_FIELDS)
             self.assertEqual(saved_rows[0]["action"], "move_forward")
+
+    def test_prepare_run_dir_places_grouped_runs_inside_output_root(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            run_dir, frame_dir = prepare_run_dir(
+                temporary_directory, "07_six_wheel_visual"
+            )
+
+            self.assertEqual(Path(run_dir).parent.name, "07_six_wheel_visual")
+            self.assertTrue(Path(frame_dir).is_dir())
+            with self.assertRaises(ValueError):
+                prepare_run_dir(temporary_directory, "../outside")
 
     @unittest.skipUnless(
         shutil.which("ffmpeg") and shutil.which("ffprobe"),

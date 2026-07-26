@@ -18,4 +18,4 @@ arguments:
   width: 640
   height: 480
   hfov: 90
-  output_dir: habitat_vln/outputs/qwen_advisor_hm3d
+  output_dir: habitat_vln/outputs/09_advisor_and_demo/qwen_advisor_hm3d

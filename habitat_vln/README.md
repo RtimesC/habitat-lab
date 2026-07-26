@@ -38,6 +38,25 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
   --max-steps 3
 ```
 
+## Six-wheel robot body
+
+The default navigation agent is an invisible collision cylinder. To keep the
+existing PointNav/VLN actions while using a visible six-wheel chassis, mount the
+RGB-D camera at 0.62 m and write a third-person review video with:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --experiment-config habitat_vln/configs/runtime/mock_hm3d_smoke.yaml \
+  --scenes-dir data/versioned_data/hm3d-0.2 \
+  --robot-body six_wheel \
+  --robot-debug-view
+```
+
+The policy still receives only `rgb`; `robot_view_episode_000.mp4` is saved for
+review. The chassis is render-only, so it does not yet make the navigation mesh
+or collision radius match the full vehicle footprint. Calibrate that separately
+once the target XJTLU vehicle's length, width, and turning constraints are known.
+
 Each preset has four top-level fields: `schema_version`, `name`, `description`,
 and `arguments`. Unknown argument names fail immediately instead of being ignored.
 
@@ -182,6 +201,26 @@ default, which overrides repeated same-direction turns with `move_forward` only
 when the target is roughly ahead and center depth is safe.
 Pass `--disable-anti-stuck` to inspect the raw model policy.
 
+### Guarded forward-depth evaluation
+
+Direct-controller policies normally execute a valid `move_forward` action
+unchanged. To test a separate, safety-guarded variant, opt in explicitly:
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  ... \
+  --qwen-role controller \
+  --enable-forward-depth-guard \
+  --forward-depth-guard-threshold 0.35
+```
+
+When the center depth is below the threshold, the guard replaces forward motion
+with a turn toward the clearer side. It records the depth values, threshold, and
+replacement action in `trajectory.csv` under `policy_metadata`. Keep these
+guarded results separate from pure-policy results. The guard is unavailable for
+Official NaVIDA `paper_pure` runs because that protocol intentionally bypasses
+the controller.
+
 ## Simulation frequencies
 
 The navigation runner has two timing modes:
@@ -243,9 +282,40 @@ generated chunk, so every 1 Hz tick replans from the latest image.
 ## Outputs
 
 Runtime artifacts go under `habitat_vln/outputs/`, which is ignored by git.
+Use the numbered top-level directories as the experiment timeline: `01` retained
+early trials, `02` plumbing, `03` small NaVIDA study, `04` HM3D engineering,
+`05` frequency, `06` video checks, `07` six-wheel visuals, `08` training data
+and adapters, and `09` advisor/demo runs. This prevents unrelated results from
+accumulating at the output root.
 Videos are transcoded to browser-compatible H.264 with `ffmpeg`, so they can be
 previewed in VS Code. If `ffmpeg` or `libx264` is unavailable, the runtime keeps
 the original `mp4v` video and prints a warning instead of discarding it.
+
+Use `--output-group` to keep future experiments out of the output root while
+preserving the timestamped run directory:
+
+```bash
+--output-dir habitat_vln/outputs --output-group 07_six_wheel_visual
+```
+
+This creates `habitat_vln/outputs/07_six_wheel_visual/run_<timestamp>/`.
+The group name must be one directory name; paths such as `../outside` are
+rejected.
+
+To diagnose a completed closed-loop run without starting another simulation, use
+the saved `trajectory.csv` to produce a per-episode report:
+
+```bash
+conda run -n habitat_vlm python -m habitat_vln.evaluation.analyze_closed_loop_failures \
+  --trajectory habitat_vln/outputs/<run>/trajectory.csv \
+  --output-dir habitat_vln/outputs/<run>/failure_report
+```
+
+The report writes `episode_diagnostics.csv` and `summary.json`. It separates the
+model, controller, and executed actions, and records collisions, invalid actions,
+premature model stop requests, policy errors, distance changes, and observable
+failure signals. Existing report files are protected from accidental replacement;
+use `--overwrite` only when a replacement is intended.
 
 ## QLoRA Training Pipeline
 
@@ -275,7 +345,8 @@ conda run -n habitat_vlm python -m habitat_vln.data.collect_oracle_training_data
 ```
 
 The collector creates a timestamped directory under
-`habitat_vln/outputs/oracle_training_data/`. It contains:
+`habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data/`.
+It contains:
 
 - `manifest.jsonl`: samples accepted for training.
 - `episodes.csv`: success and inclusion status for every attempted episode.
@@ -287,7 +358,7 @@ loading the model:
 
 ```bash
 conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora \
-  --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
+  --manifest habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data/collect_*/manifest.jsonl \
   --dry-run
 ```
 
@@ -304,7 +375,7 @@ Start with a deliberately small overfitting run on the RTX 4060 8GB GPU:
 ```bash
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora \
-  --manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl \
+  --manifest habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data/collect_*/manifest.jsonl \
   --max-samples 100 \
   --validation-ratio 0.1 \
   --epochs 1 \
@@ -313,14 +384,14 @@ conda run -n habitat_vlm python -m habitat_vln.training.train_qwen_qlora \
 ```
 
 The final adapter is saved under
-`habitat_vln/outputs/qwen_qlora/final_adapter/`. Evaluate it by keeping the base
-model unchanged and adding `--adapter-path`:
+`habitat_vln/outputs/08_training_data_and_adapters/qwen_qlora/final_adapter/`.
+Evaluate it by keeping the base model unchanged and adding `--adapter-path`:
 
 ```bash
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
   --dataset-split val_seen \
-  --adapter-path habitat_vln/outputs/qwen_qlora/final_adapter \
+  --adapter-path habitat_vln/outputs/08_training_data_and_adapters/qwen_qlora/final_adapter \
   --load-in-4bit \
   --num-episodes 1 \
   --max-steps 80 \
@@ -358,7 +429,7 @@ Convert the timestamped Oracle manifest into paired VLN and IDS records:
 
 ```bash
 conda run -n habitat_vlm python -m habitat_vln.data.build_navida_training_data \
-  --source-manifest habitat_vln/outputs/oracle_training_data/collect_*/manifest.jsonl
+  --source-manifest habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data/collect_*/manifest.jsonl
 ```
 
 The converter writes `navida/manifest.jsonl`, `navida/episodes.csv`, and
@@ -367,7 +438,7 @@ schema without loading Qwen:
 
 ```bash
 conda run -n habitat_vlm python -m habitat_vln.training.train_navida_qlora \
-  --manifest habitat_vln/outputs/oracle_training_data/collect_*/navida/manifest.jsonl \
+  --manifest habitat_vln/outputs/08_training_data_and_adapters/oracle_training_data/collect_*/navida/manifest.jsonl \
   --validation-ratio 0 \
   --dry-run
 ```
@@ -479,7 +550,7 @@ All commands run from the repository root in the `habitat_vlm` environment. Use
 the same workspace for every stage:
 
 ```bash
-WORKSPACE=habitat_vln/outputs/hm3d_navida_system
+WORKSPACE=habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_system
 
 conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" check
@@ -517,7 +588,7 @@ scene-disjoint validation scene, 60 successful train episodes, and 600 mixed
 VLN/IDS samples.
 
 ```bash
-WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_60ep
+WORKSPACE=habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_60ep
 
 conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" prepare \
@@ -570,7 +641,7 @@ low-clearance, and reorientation episodes. Low clearance is a navmesh geometry
 proxy for narrow areas, not a semantic room or corridor annotation.
 
 ```bash
-WORKSPACE=habitat_vln/outputs/hm3d_navida_scale_300ep_20260713
+WORKSPACE=habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_300ep_20260713
 
 conda run -n habitat_vlm python -m habitat_vln.pipelines.hm3d_navida_pipeline \
   --workspace "$WORKSPACE" prepare \

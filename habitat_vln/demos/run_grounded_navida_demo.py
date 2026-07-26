@@ -20,7 +20,7 @@ DEFAULT_DATASET_PATH = (
 )
 DEFAULT_DATASET_SPLIT = "val"
 DEFAULT_SCENES_DIR = "data/scene_datasets/habitat-test-scenes"
-DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/grounded_navida_demo"
+DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/09_advisor_and_demo/grounded_navida_demo"
 
 
 def parse_args(

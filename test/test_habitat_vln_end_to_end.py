@@ -1,4 +1,5 @@
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,13 +53,14 @@ class FakeHabitatEnv:
         self.episode_over = False
         self.closed = False
         self.distance = 2.0
+        self.depth = 2.0
         self.steps = 0
 
     def _observation(self):
         value = min(255, 40 + self.steps * 30)
         return {
             "rgb": np.full((48, 64, 3), value, dtype=np.uint8),
-            "depth": np.full((48, 64, 1), 2.0, dtype=np.float32),
+            "depth": np.full((48, 64, 1), self.depth, dtype=np.float32),
             "pointgoal_with_gps_compass": np.array(
                 [self.distance, 0.0], dtype=np.float32
             ),
@@ -127,6 +129,48 @@ class HabitatVLNEndToEndTest(unittest.TestCase):
             self.assertTrue(all(Path(row["image"]).is_file() for row in rows))
             self.assertTrue((run_directory / "episode_000.mp4").is_file())
             self.assertTrue(env.closed)
+
+    def test_guarded_mock_run_records_forward_depth_guard(self):
+        env = FakeHabitatEnv()
+        env.depth = 0.2
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            argv = [
+                "habitat_vln_nav.py",
+                "--experiment-config",
+                str(MOCK_CONFIG),
+                "--output-dir",
+                temporary_directory,
+                "--max-steps",
+                "3",
+                "--qwen-role",
+                "controller",
+                "--enable-forward-depth-guard",
+            ]
+            with patch("sys.argv", argv), patch(
+                "habitat_vln.habitat_vln_nav.build_env",
+                return_value=env,
+            ):
+                main()
+
+            run_directory = next(Path(temporary_directory).glob("run_*"))
+            with (run_directory / "trajectory.csv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            guarded_row = next(
+                row
+                for row in rows
+                if "forward_depth_guard" in json.loads(row["policy_metadata"])
+            )
+
+            self.assertEqual(guarded_row["vlm_action"], "move_forward")
+            self.assertEqual(guarded_row["controller_action"], "turn_left")
+            self.assertEqual(guarded_row["executed_action"], "turn_left")
+            self.assertEqual(guarded_row["valid_action"], "False")
+            self.assertEqual(
+                json.loads(guarded_row["policy_metadata"])[
+                    "forward_depth_guard"
+                ]["replacement_action"],
+                "turn_left",
+            )
 
 
 if __name__ == "__main__":

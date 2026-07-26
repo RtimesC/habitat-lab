@@ -21,7 +21,7 @@ from .train_qwen_qlora import (
 )
 
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/navida_qlora"
+DEFAULT_OUTPUT_DIR = "habitat_vln/outputs/08_training_data_and_adapters/navida_qlora"
 
 
 class NaVIDADataset:

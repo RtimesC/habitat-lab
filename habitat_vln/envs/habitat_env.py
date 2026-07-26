@@ -8,6 +8,14 @@ import habitat
 from habitat.config import read_write
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
 
+from .six_wheel_robot import (
+    ROBOT_BODY_NONE,
+    ROBOT_BODY_SIX_WHEEL,
+    SixWheelRobotConfig,
+    SixWheelRobotEnvironment,
+    configure_six_wheel_sensors,
+)
+
 DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"
 
 ACTION_MAP = {
@@ -31,10 +39,31 @@ class HabitatEnvironmentConfig:
     dataset_path: Optional[str] = None
     scenes_dir: Optional[str] = None
     gpu_device_id: Optional[int] = None
+    robot_body: str = ROBOT_BODY_NONE
+    robot_camera_height: float = 0.62
+    robot_debug_view: bool = False
 
 
 def create_habitat_env(settings):
     """Create Habitat with dataset and visual-sensor overrides applied."""
+    if settings.robot_body not in {ROBOT_BODY_NONE, ROBOT_BODY_SIX_WHEEL}:
+        raise ValueError(
+            "robot_body must be one of "
+            f"{ROBOT_BODY_NONE!r} or {ROBOT_BODY_SIX_WHEEL!r}"
+        )
+    if settings.robot_camera_height <= 0:
+        raise ValueError("robot_camera_height must be greater than zero")
+
+    robot_config = None
+    if settings.robot_body == ROBOT_BODY_SIX_WHEEL:
+        robot_config = SixWheelRobotConfig(
+            camera_height=settings.robot_camera_height,
+            debug_view=settings.robot_debug_view,
+            debug_view_width=settings.width,
+            debug_view_height=settings.height,
+            debug_view_hfov=settings.hfov,
+        )
+
     config = habitat.get_config(settings.task_config)
     with read_write(config):
         if settings.dataset_split is not None:
@@ -60,7 +89,13 @@ def create_habitat_env(settings):
         sensors.depth_sensor.width = settings.width
         sensors.depth_sensor.height = settings.height
         sensors.depth_sensor.hfov = settings.hfov
-    return habitat.Env(config=config)
+        if robot_config is not None:
+            configure_six_wheel_sensors(sensors, robot_config)
+
+    environment = habitat.Env(config=config)
+    if robot_config is not None:
+        return SixWheelRobotEnvironment(environment, robot_config)
+    return environment
 
 
 def build_env(
@@ -73,6 +108,9 @@ def build_env(
     dataset_path=None,
     scenes_dir=None,
     gpu_device_id=None,
+    robot_body=ROBOT_BODY_NONE,
+    robot_camera_height=0.62,
+    robot_debug_view=False,
 ):
     """Compatibility wrapper around :func:`create_habitat_env`."""
     return create_habitat_env(
@@ -86,6 +124,9 @@ def build_env(
             dataset_path=dataset_path,
             scenes_dir=scenes_dir,
             gpu_device_id=gpu_device_id,
+            robot_body=robot_body,
+            robot_camera_height=robot_camera_height,
+            robot_debug_view=robot_debug_view,
         )
     )
 

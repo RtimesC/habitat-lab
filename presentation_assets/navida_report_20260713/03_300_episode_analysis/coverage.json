@@ -656,7 +656,7 @@
     "near": 280
   },
   "episodes": 300,
-  "manifest": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/mixed/build_20260713_135434/manifest.jsonl",
+  "manifest": "/home/sousuke/Desktop/habitat-lab/habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_300ep_20260713/mixed/build_20260713_135434/manifest.jsonl",
   "minimum_cell_count": 20,
   "observed_cell_rate": 0.675,
   "observed_cells": 54,
