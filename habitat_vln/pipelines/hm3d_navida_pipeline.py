@@ -13,7 +13,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = PROJECT_ROOT / "habitat_vln"
-DEFAULT_WORKSPACE = SCRIPT_DIR / "outputs" / "hm3d_navida_system"
+DEFAULT_WORKSPACE = (
+    SCRIPT_DIR / "outputs" / "04_hm3d_engineering" / "hm3d_navida_system"
+)
 DEFAULT_SCENE_ROOT = PROJECT_ROOT / "data" / "versioned_data" / "hm3d-0.2"
 DEFAULT_SCENES_DIR = PROJECT_ROOT / "data" / "scene_datasets"
 DEFAULT_TASK_CONFIG = "benchmark/nav/pointnav/pointnav_hm3d.yaml"

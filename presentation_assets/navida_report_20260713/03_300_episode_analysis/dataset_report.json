@@ -26,7 +26,7 @@
     "instruction_sources": [
       "hm3d_pointnav_template_v1"
     ],
-    "path": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/datasets/train/train.json.gz",
+    "path": "/home/sousuke/Desktop/habitat-lab/habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_300ep_20260713/datasets/train/train.json.gz",
     "route_profiles": {
       "long_route": 60,
       "low_clearance": 60,
@@ -71,7 +71,7 @@
     "instruction_sources": [
       "hm3d_pointnav_template_v1"
     ],
-    "path": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/datasets/val/val.json.gz",
+    "path": "/home/sousuke/Desktop/habitat-lab/habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_300ep_20260713/datasets/val/val.json.gz",
     "route_profiles": {
       "long_route": 12,
       "low_clearance": 12,

@@ -1,8 +1,10 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from habitat_vln.control import ControllerConfig, NavigationController
 from habitat_vln.core import PolicyOutput
+from habitat_vln.habitat_vln_nav import main, parse_args
 
 
 def navigation_state(**overrides):
@@ -56,6 +58,94 @@ class NavigationControllerTest(unittest.TestCase):
         self.assertEqual(decision.action, "move_forward")
         self.assertFalse(decision.policy_output.is_valid)
         self.assertIn("anti_stuck_override", decision.policy_output.raw_text)
+
+    def test_forward_depth_guard_is_disabled_by_default(self):
+        controller = NavigationController(
+            ControllerConfig(qwen_role="controller")
+        )
+
+        decision = controller.decide(
+            PolicyOutput("move_forward", "raw", True),
+            navigation_state(
+                depth_left_m=0.8,
+                depth_center_m=0.2,
+                depth_right_m=0.3,
+            ),
+            step=8,
+            previous_action="none",
+            previous_action_count=0,
+            previous_collision=False,
+            no_progress_steps=0,
+        )
+
+        self.assertEqual(decision.action, "move_forward")
+        self.assertTrue(decision.policy_output.is_valid)
+
+    def test_forward_depth_guard_turns_to_clearer_side(self):
+        controller = NavigationController(
+            ControllerConfig(
+                qwen_role="controller",
+                enable_forward_depth_guard=True,
+            )
+        )
+
+        decision = controller.decide(
+            PolicyOutput("move_forward", "raw", True),
+            navigation_state(
+                depth_left_m=0.8,
+                depth_center_m=0.2,
+                depth_right_m=0.3,
+            ),
+            step=8,
+            previous_action="none",
+            previous_action_count=0,
+            previous_collision=False,
+            no_progress_steps=0,
+        )
+
+        self.assertEqual(decision.vlm_action, "move_forward")
+        self.assertEqual(decision.controller_action, "turn_left")
+        self.assertEqual(decision.action, "turn_left")
+        self.assertFalse(decision.policy_output.is_valid)
+        self.assertEqual(
+            decision.policy_output.metadata["forward_depth_guard"],
+            {
+                "threshold_m": 0.35,
+                "depth_left_m": 0.8,
+                "depth_center_m": 0.2,
+                "depth_right_m": 0.3,
+                "replacement_action": "turn_left",
+            },
+        )
+
+    def test_forward_depth_guard_flag_is_opt_in(self):
+        default_args = parse_args([])
+        guarded_args = parse_args(["--enable-forward-depth-guard"])
+
+        self.assertFalse(default_args.enable_forward_depth_guard)
+        self.assertTrue(guarded_args.enable_forward_depth_guard)
+        self.assertEqual(guarded_args.forward_depth_guard_threshold, 0.35)
+
+    def test_output_group_is_optional(self):
+        default_args = parse_args([])
+        grouped_args = parse_args(
+            ["--output-group", "07_six_wheel_visual"]
+        )
+
+        self.assertIsNone(default_args.output_group)
+        self.assertEqual(grouped_args.output_group, "07_six_wheel_visual")
+
+    def test_forward_depth_guard_rejects_paper_pure_protocol(self):
+        argv = [
+            "habitat_vln_nav.py",
+            "--official-navida-http",
+            "--enable-forward-depth-guard",
+        ]
+
+        with patch("sys.argv", argv), self.assertRaisesRegex(
+            ValueError, "paper_pure runs bypass the controller"
+        ):
+            main()
 
     def test_early_stop_is_rejected(self):
         controller = NavigationController(

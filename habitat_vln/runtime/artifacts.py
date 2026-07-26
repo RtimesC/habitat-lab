@@ -9,8 +9,22 @@ import cv2
 import numpy as np
 
 
-def prepare_run_dir(output_dir):
-    """Create a timestamped run directory and its frame directory."""
+def prepare_run_dir(output_dir, output_group=None):
+    """Create a timestamped run directory, optionally inside one output group."""
+    if output_group:
+        if (
+            not isinstance(output_group, str)
+            or output_group.strip() != output_group
+            or output_group in {".", ".."}
+            or "/" in output_group
+            or "\\" in output_group
+        ):
+            raise ValueError(
+                "output_group must be one simple directory name inside "
+                "--output-dir"
+            )
+        output_dir = os.path.join(output_dir, output_group)
+    os.makedirs(output_dir, exist_ok=True)
     run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S_%f")
     run_dir = os.path.join(output_dir, run_name)
     suffix = 1

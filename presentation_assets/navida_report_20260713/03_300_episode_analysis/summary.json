@@ -21,7 +21,7 @@
   "sample_strategy": "coverage-balanced",
   "samples": 3000,
   "seed": 42,
-  "source_manifest": "/home/sousuke/habitat-lab/habitat_vln/outputs/hm3d_navida_scale_300ep_20260713/oracle/collect_20260713_135247/manifest.jsonl",
+  "source_manifest": "/home/sousuke/Desktop/habitat-lab/habitat_vln/outputs/04_hm3d_engineering/hm3d_navida_scale_300ep_20260713/oracle/collect_20260713_135247/manifest.jsonl",
   "tasks": {
     "ids": 1500,
     "vln": 1500
