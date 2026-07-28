@@ -1,38 +1,24 @@
 """Closed-loop Habitat navigation execution independent from CLI parsing."""
 
-from dataclasses import replace
 import json
 import math
 import os
 import time
+from dataclasses import replace
 from typing import Any
 
 import cv2
 
 try:
     from ..control import ControllerConfig, NavigationController
-    from ..core import NavigationObservation, PolicyOutput
-    from ..envs import (
-        NavigationStateBuilder,
-        optional_float,
-        step_navigation_action,
-    )
+    from ..core import PolicyOutput
+    from ..envs import NavigationStateBuilder, step_navigation_action
 except ImportError:
     from control import ControllerConfig, NavigationController
-    from core import NavigationObservation, PolicyOutput
-    from envs import (
-        NavigationStateBuilder,
-        optional_float,
-        step_navigation_action,
-    )
+    from core import PolicyOutput
+    from envs import NavigationStateBuilder, step_navigation_action
 
-from .artifacts import (
-    draw_status,
-    prepare_run_dir,
-    rgb_to_bgr,
-    write_video,
-)
-from .grounded_demo_artifacts import write_grounded_demo_artifacts
+from .artifacts import draw_status, prepare_run_dir, rgb_to_bgr, write_video
 from .recorder import TrajectoryRecorder
 from .scheduler import (
     BackgroundPolicyInference,
@@ -73,11 +59,9 @@ def episode_instruction_text(episode):
 
 
 def metric_values(metrics):
-    """Select standard navigation metrics for one trajectory row."""
+    """Keep task-adapter metrics as opaque evidence, never as policy input."""
     return {
-        "distance_to_goal": metrics.get("distance_to_goal", ""),
-        "success": metrics.get("success", ""),
-        "spl": metrics.get("spl", ""),
+        "environment_metrics": json.dumps(metrics, default=str, sort_keys=True)
     }
 
 
@@ -134,7 +118,6 @@ def terminal_runtime_error_row(
     metrics: Any,
     image_path: str,
     frequency_mode: str,
-    policy_protocol: str,
     vision_hz: float,
     inference_hz: float,
     wall_time_sec: float,
@@ -143,7 +126,6 @@ def terminal_runtime_error_row(
     row = {
         "step": step,
         "frequency_mode": frequency_mode,
-        "policy_protocol": policy_protocol,
         "target_vision_hz": vision_hz,
         "target_inference_hz": inference_hz,
         "logical_time_sec": step / vision_hz,
@@ -257,31 +239,36 @@ def _execute_navigation(
     )
     trajectory_path = os.path.join(run_dir, "trajectory.csv")
     state_builder = None
-    policy_protocol = getattr(policy, "policy_protocol", None)
-    paper_pure = policy_protocol == "paper_pure"
-    if paper_pure and args.frequency_mode != "joint":
-        raise ValueError("paper_pure policies require joint frequency mode")
-    if not paper_pure:
-        controller = controller or NavigationController(
-            ControllerConfig.from_args(args)
-        )
+    controller = controller or NavigationController(
+        ControllerConfig.from_args(args)
+    )
     vision_hz, inference_hz = active_frequencies(args)
     video_fps = args.video_fps if args.video_fps is not None else vision_hz
+    save_artifacts = not getattr(args, "no_artifacts", False)
 
     start_time = time.perf_counter()
     total_steps = 0
     total_collisions = 0
     episode_summaries = []
     grounded_episode_summaries = []
-    grounded_demo_artifacts = getattr(args, "grounded_demo_artifacts", False)
+    grounded_demo_artifacts = False
+    episode_start_index = getattr(args, "episode_start_index", 0)
+    if episode_start_index < 0:
+        raise ValueError("episode_start_index must be zero or greater")
 
     with TrajectoryRecorder(trajectory_path) as recorder:
-        for episode_index in range(args.num_episodes):
+        for _ in range(episode_start_index):
+            env.reset()
+        for episode_index in range(
+            episode_start_index,
+            episode_start_index + args.num_episodes,
+        ):
             episode_frame_dir = os.path.join(
                 frame_dir,
                 f"episode_{episode_index:03d}",
             )
-            os.makedirs(episode_frame_dir, exist_ok=True)
+            if save_artifacts:
+                os.makedirs(episode_frame_dir, exist_ok=True)
             episode_video_name = (
                 "run.mp4"
                 if grounded_demo_artifacts and episode_index == 0
@@ -308,15 +295,7 @@ def _execute_navigation(
                 start_episode = getattr(policy, "start_episode", None)
                 episode_start_error = ""
                 if callable(start_episode):
-                    try:
-                        start_episode(str(env.current_episode.episode_id))
-                    except Exception as exc:
-                        if not paper_pure:
-                            raise
-                        episode_start_error = (
-                            "episode_start_exception: "
-                            f"{type(exc).__name__}: {exc}"
-                        )
+                    start_episode(str(env.current_episode.episode_id))
                 episode_fallback = (
                     episode_instruction_text(env.current_episode) or args.goal
                 )
@@ -348,7 +327,6 @@ def _execute_navigation(
                         metrics={},
                         image_path="",
                         frequency_mode=args.frequency_mode,
-                        policy_protocol=policy_protocol or "",
                         vision_hz=vision_hz,
                         inference_hz=inference_hz,
                         wall_time_sec=(
@@ -356,7 +334,7 @@ def _execute_navigation(
                         ),
                     )
                 )
-                failed_metrics = {"success": 0.0, "spl": 0.0}
+                failed_metrics = {}
                 episode_summaries.append(failed_metrics)
                 grounded_episode_summaries.append(
                     {
@@ -374,9 +352,7 @@ def _execute_navigation(
                         "stopped": False,
                         "failed": True,
                         "collisions": 0,
-                        "success": 0.0,
-                        "spl": 0.0,
-                        "final_distance": None,
+                        "environment_metrics": {},
                         "runtime_sec": (
                             time.perf_counter() - episode_start_time
                         ),
@@ -410,13 +386,9 @@ def _execute_navigation(
             previous_action = "none"
             previous_action_count = 0
             previous_collision = False
-            previous_goal_distance = None
-            no_progress_steps = 0
             latest_metrics = {}
             use_background_inference = (
-                not paper_pure
-                and args.frequency_mode == "layered"
-                and not args.no_rate_limit
+                args.frequency_mode == "layered" and not args.no_rate_limit
             )
             background_inference = (
                 BackgroundPolicyInference(policy)
@@ -425,7 +397,7 @@ def _execute_navigation(
             )
             last_policy_output = (
                 PolicyOutput(
-                    action=args.advisor_fallback,
+                    action=args.fallback_action,
                     raw_text='{"scheduler_fallback":"waiting_for_first_inference"}',
                     is_valid=False,
                 )
@@ -462,9 +434,6 @@ def _execute_navigation(
                         previous_action=previous_action,
                         previous_action_count=previous_action_count,
                         previous_collision=previous_collision,
-                        previous_goal_distance=previous_goal_distance,
-                        no_progress_steps=no_progress_steps,
-                        metrics=metrics_before_action,
                     )
                 except Exception as exc:
                     if not grounded_demo_artifacts:
@@ -472,20 +441,23 @@ def _execute_navigation(
                     runtime_error = (
                         "runtime_exception: " f"{type(exc).__name__}: {exc}"
                     )
-                    candidate_image_path = os.path.join(
-                        episode_frame_dir,
-                        f"frame_{step:03d}.jpg",
-                    )
-                    image_path, frame_error = save_rgb_frame(
-                        rgb,
-                        candidate_image_path,
-                        step,
-                        None,
-                        False,
-                        False,
-                    )
-                    if image_path:
-                        frame_paths.append(image_path)
+                    image_path = ""
+                    frame_error = ""
+                    if save_artifacts:
+                        candidate_image_path = os.path.join(
+                            episode_frame_dir,
+                            f"frame_{step:03d}.jpg",
+                        )
+                        image_path, frame_error = save_rgb_frame(
+                            rgb,
+                            candidate_image_path,
+                            step,
+                            None,
+                            False,
+                            False,
+                        )
+                        if image_path:
+                            frame_paths.append(image_path)
                     if frame_error:
                         runtime_error = append_failure_reason(
                             runtime_error,
@@ -506,7 +478,6 @@ def _execute_navigation(
                             metrics=metrics_before_action,
                             image_path=image_path,
                             frequency_mode=args.frequency_mode,
-                            policy_protocol=policy_protocol or "",
                             vision_hz=vision_hz,
                             inference_hz=inference_hz,
                             wall_time_sec=wall_time_sec,
@@ -514,21 +485,11 @@ def _execute_navigation(
                     )
                     episode_steps += 1
                     break
-                if paper_pure:
-                    policy_observation = NavigationObservation(
-                        rgb=obs["rgb"],
-                        depth=None,
-                        instruction=instruction,
-                        step=step,
-                        navigation_context={},
-                    )
-                else:
-                    policy_observation = (
-                        navigation_state.as_policy_observation(
-                            obs,
-                            instruction,
-                        )
-                    )
+                policy_observation = navigation_state.as_policy_observation(
+                    obs,
+                    instruction,
+                    building_prior=getattr(args, "building_prior", {}),
+                )
                 inference_ran = inference_is_due(
                     logical_time_sec,
                     next_inference_time_sec,
@@ -561,17 +522,9 @@ def _execute_navigation(
                             raise RuntimeError(episode_start_error)
                         last_policy_output = policy.predict(policy_observation)
                     except Exception as exc:
-                        if not paper_pure:
-                            raise
-                        termination_reason = (
-                            "episode_start_exception"
-                            if episode_start_error
-                            else "policy_exception"
-                        )
-                        error = (
-                            episode_start_error
-                            or f"policy_exception: {type(exc).__name__}: {exc}"
-                        )
+                        raise RuntimeError(
+                            "policy_exception: " f"{type(exc).__name__}: {exc}"
+                        ) from exc
                         last_policy_output = PolicyOutput(
                             action=None,
                             raw_text="",
@@ -609,34 +562,27 @@ def _execute_navigation(
                     if decision_age_steps == ""
                     else decision_age_steps / vision_hz
                 )
-                if paper_pure:
-                    policy_output = last_policy_output
-                    vlm_action = policy_output.action
-                    controller_action = policy_output.action
-                    action_name = policy_output.action
-                else:
-                    control_decision = controller.decide(
-                        last_policy_output,
-                        navigation_state,
-                        step=step,
-                        previous_action=previous_action,
-                        previous_action_count=previous_action_count,
-                        previous_collision=previous_collision,
-                        no_progress_steps=no_progress_steps,
-                    )
-                    for message in control_decision.messages:
-                        print(message)
-                    vlm_action = control_decision.vlm_action
-                    controller_action = control_decision.controller_action
-                    action_name = control_decision.action
-                    policy_output = control_decision.policy_output
-                    if action_name != vlm_action and hasattr(
-                        policy, "clear_action_queue"
-                    ):
-                        policy.clear_action_queue()
+                control_decision = controller.decide(
+                    last_policy_output,
+                    navigation_state,
+                    step=step,
+                    previous_action=previous_action,
+                    previous_action_count=previous_action_count,
+                    previous_collision=previous_collision,
+                )
+                for message in control_decision.messages:
+                    print(message)
+                vlm_action = control_decision.vlm_action
+                controller_action = control_decision.controller_action
+                action_name = control_decision.action
+                policy_output = control_decision.policy_output
+                if action_name != vlm_action and hasattr(
+                    policy, "clear_action_queue"
+                ):
+                    policy.clear_action_queue()
 
-                terminate_without_step = paper_pure and (
-                    not policy_output.is_valid or action_name is None
+                terminate_without_step = (
+                    not policy_output.is_valid and action_name is None
                 )
                 policy_metadata = dict(policy_output.metadata)
                 execution_error = ""
@@ -666,7 +612,6 @@ def _execute_navigation(
                     )
                     collision = False
                     metrics = metrics_before_action
-                    action_distance_delta = None
                     episode_failed = True
                 else:
                     try:
@@ -676,16 +621,6 @@ def _execute_navigation(
                         collision_count += int(collision)
                         metrics = env.get_metrics()
                         latest_metrics = dict(metrics)
-                        next_distance = optional_float(
-                            metrics.get("distance_to_goal", "")
-                        )
-                        action_distance_delta = (
-                            None
-                            if navigation_state.distance_to_goal is None
-                            or next_distance is None
-                            else next_distance
-                            - navigation_state.distance_to_goal
-                        )
                     except Exception as exc:
                         execution_failed = True
                         execution_error = (
@@ -699,7 +634,6 @@ def _execute_navigation(
                         )
                         collision = False
                         metrics = metrics_before_action
-                        action_distance_delta = None
                 stopped = action_name == "stop" and not execution_failed
                 max_steps_reached = bool(
                     step + 1 >= args.max_steps
@@ -712,21 +646,24 @@ def _execute_navigation(
                     episode_failed = True
                     failure_reason = "max_steps_reached"
 
-                candidate_image_path = os.path.join(
-                    episode_frame_dir,
-                    f"frame_{step:03d}.jpg",
-                )
-                image_path, frame_error = save_rgb_frame(
-                    rgb,
-                    candidate_image_path,
-                    step,
-                    action_name,
-                    policy_output.is_valid,
-                    collision,
-                )
-                if image_path:
-                    frame_paths.append(image_path)
-                if robot_view is not None:
+                image_path = ""
+                frame_error = ""
+                if save_artifacts:
+                    candidate_image_path = os.path.join(
+                        episode_frame_dir,
+                        f"frame_{step:03d}.jpg",
+                    )
+                    image_path, frame_error = save_rgb_frame(
+                        rgb,
+                        candidate_image_path,
+                        step,
+                        action_name,
+                        policy_output.is_valid,
+                        collision,
+                    )
+                    if image_path:
+                        frame_paths.append(image_path)
+                if save_artifacts and robot_view is not None:
                     os.makedirs(robot_view_frame_dir, exist_ok=True)
                     robot_view_path, robot_view_error = save_rgb_frame(
                         robot_view,
@@ -774,7 +711,6 @@ def _execute_navigation(
                 row = {
                     "step": step,
                     "frequency_mode": args.frequency_mode,
-                    "policy_protocol": policy_protocol or "",
                     "target_vision_hz": vision_hz,
                     "target_inference_hz": inference_hz,
                     "logical_time_sec": logical_time_sec,
@@ -805,9 +741,6 @@ def _execute_navigation(
                     "vlm_action": vlm_action,
                     "controller_action": controller_action,
                     "previous_action": previous_action,
-                    "goal_distance_m": navigation_state.goal_distance_m,
-                    "goal_angle_deg": navigation_state.goal_angle_deg,
-                    "distance_change_m": navigation_state.distance_change_m,
                     "collided": collision,
                     "depth_left_m": navigation_state.depth_left_m,
                     "depth_center_m": navigation_state.depth_center_m,
@@ -815,8 +748,6 @@ def _execute_navigation(
                     "previous_action_count": previous_action_count,
                     "previous_collision": previous_collision,
                     "collision": collision,
-                    "distance_delta": navigation_state.distance_change_m,
-                    "no_progress_steps": no_progress_steps,
                     "depth_min": navigation_state.depth_min,
                     "depth_mean": navigation_state.depth_mean,
                     "image": image_path,
@@ -831,27 +762,19 @@ def _execute_navigation(
                     "error": row_error,
                 }
                 row.update(episode_values(env, episode_index, instruction))
-                row.update(
-                    agent_values_from_state(navigation_state.agent_state)
-                )
                 row.update(metric_values(metrics))
                 recorder.write(row)
                 episode_steps += 1
 
-                print(
-                    f"episode={episode_index:03d} step={step:03d} "
-                    f"inference={'started' if inference_ran else 'idle'} "
-                    f"completed={inference_completed} "
-                    f"vlm={vlm_action} action={action_name} "
-                    f"valid={policy_output.is_valid} "
-                    f"collision={collision} "
-                    f"goal_distance={_display(navigation_state.goal_distance_m)} "
-                    f"goal_angle={_display(navigation_state.goal_angle_deg)} "
-                    f"delta={_display(navigation_state.distance_change_m)} "
-                    f"distance={metrics.get('distance_to_goal', '')} "
-                    f"success={metrics.get('success', '')} "
-                    f"spl={metrics.get('spl', '')}"
-                )
+                if not getattr(args, "quiet", False):
+                    print(
+                        f"episode={episode_index:03d} step={step:03d} "
+                        f"inference={'started' if inference_ran else 'idle'} "
+                        f"completed={inference_completed} "
+                        f"vlm={vlm_action} action={action_name} "
+                        f"valid={policy_output.is_valid} "
+                        f"collision={collision}"
+                    )
 
                 if (
                     terminate_without_step
@@ -868,16 +791,6 @@ def _execute_navigation(
                     previous_action_count = 1
                 previous_action = action_name
                 previous_collision = collision
-                previous_goal_distance = navigation_state.goal_distance_m
-                progress_delta = (
-                    navigation_state.distance_change_m
-                    if navigation_state.distance_change_m is not None
-                    else action_distance_delta
-                )
-                if progress_delta is not None and progress_delta < -0.05:
-                    no_progress_steps = 0
-                else:
-                    no_progress_steps += 1
 
                 limit_loop_rate(
                     step_start_time,
@@ -889,18 +802,19 @@ def _execute_navigation(
                 background_inference.close()
 
             video_error = ""
-            try:
-                video_written = write_video(
-                    frame_paths,
-                    episode_video_path,
-                    video_fps,
-                )
-            except Exception as exc:
-                video_written = False
-                video_error = str(exc)
-                print(f"warning: video was not written: {video_error}")
+            video_written = False
+            if save_artifacts:
+                try:
+                    video_written = write_video(
+                        frame_paths,
+                        episode_video_path,
+                        video_fps,
+                    )
+                except Exception as exc:
+                    video_error = str(exc)
+                    print(f"warning: video was not written: {video_error}")
             robot_view_video_written = False
-            if robot_view_frame_paths:
+            if save_artifacts and robot_view_frame_paths:
                 try:
                     robot_view_video_written = write_video(
                         robot_view_frame_paths,
@@ -909,8 +823,7 @@ def _execute_navigation(
                     )
                 except Exception as exc:
                     print(
-                        "warning: robot view video was not written: "
-                        f"{exc}"
+                        "warning: robot view video was not written: " f"{exc}"
                     )
             try:
                 final_metrics = dict(env.get_metrics())
@@ -924,9 +837,6 @@ def _execute_navigation(
                     final_metrics_error,
                 )
                 final_metrics = dict(latest_metrics)
-            if episode_failed:
-                final_metrics["success"] = 0.0
-                final_metrics["spl"] = 0.0
             total_steps += episode_steps
             total_collisions += collision_count
             episode_summaries.append(final_metrics)
@@ -960,13 +870,7 @@ def _execute_navigation(
                         "stopped": stopped,
                         "failed": episode_failed,
                         "collisions": collision_count,
-                        "success": optional_float(
-                            final_metrics.get("success", "")
-                        ),
-                        "spl": optional_float(final_metrics.get("spl", "")),
-                        "final_distance": optional_float(
-                            final_metrics.get("distance_to_goal", "")
-                        ),
+                        "environment_metrics": final_metrics,
                         "runtime_sec": time.perf_counter()
                         - episode_start_time,
                         "output_paths": {
@@ -990,17 +894,15 @@ def _execute_navigation(
             print(
                 f"episode_summary: episode={episode_index:03d} "
                 f"steps={episode_steps} stopped={stopped} failed={episode_failed} "
-                f"collisions={collision_count} "
-                f"success={final_metrics.get('success', '')} "
-                f"spl={final_metrics.get('spl', '')} "
-                f"distance={final_metrics.get('distance_to_goal', '')}"
+                f"collisions={collision_count}"
             )
-            print(
-                f"saved video to {episode_video_path}"
-                if video_written
-                else "video was not written"
-            )
-            if robot_view_frame_paths:
+            if save_artifacts:
+                print(
+                    f"saved video to {episode_video_path}"
+                    if video_written
+                    else "video was not written"
+                )
+            if save_artifacts and robot_view_frame_paths:
                 print(
                     f"saved robot view video to {robot_view_video_path}"
                     if robot_view_video_written
@@ -1015,27 +917,8 @@ def _execute_navigation(
 
     runtime_sec = time.perf_counter() - start_time
     print(f"saved trajectory to {trajectory_path}")
-    success_values = [
-        float(metrics.get("success", 0.0))
-        for metrics in episode_summaries
-        if metrics.get("success", "") != ""
-    ]
-    spl_values = [
-        float(metrics.get("spl", 0.0))
-        for metrics in episode_summaries
-        if metrics.get("spl", "") != ""
-    ]
-    average_success = (
-        sum(success_values) / len(success_values) if success_values else ""
-    )
-    average_spl = sum(spl_values) / len(spl_values) if spl_values else ""
     print(
         f"summary: episodes={len(episode_summaries)} steps={total_steps} "
-        f"collisions={total_collisions} success={average_success} "
-        f"spl={average_spl} runtime_sec={runtime_sec:.2f}"
+        f"collisions={total_collisions} runtime_sec={runtime_sec:.2f}"
     )
     return trajectory_path
-
-
-def _display(value):
-    return "" if value is None else value

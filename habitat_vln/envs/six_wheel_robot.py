@@ -1,6 +1,7 @@
 """A lightweight visible six-wheel body for the standard Habitat agent.
 
-The PointNav/VLN agent remains responsible for navigation and collision checks.
+The indoor semantic-navigation policy remains responsible for high-level actions
+while Habitat continues to provide collision checks.
 This module adds a render-only vehicle body that follows that agent, so existing
 navigation policies can be tested with a camera mounted at a realistic height.
 """
@@ -8,10 +9,10 @@ navigation policies can be tested with a camera mounted at a realistic height.
 from dataclasses import dataclass
 from typing import Any, List, Sequence, Tuple
 
-import habitat_sim
 import magnum as mn
-from habitat_sim.utils.common import quat_to_magnum
 
+import habitat_sim
+from habitat_sim.utils.common import quat_to_magnum
 
 ROBOT_BODY_NONE = "none"
 ROBOT_BODY_SIX_WHEEL = "six_wheel"
@@ -41,7 +42,9 @@ class _RobotPart:
     local_rotation: mn.Quaternion
 
 
-def configure_six_wheel_sensors(sensors: Any, config: SixWheelRobotConfig) -> None:
+def configure_six_wheel_sensors(
+    sensors: Any, config: SixWheelRobotConfig
+) -> None:
     """Mount the normal RGB-D sensors on the vehicle and add an optional rear view."""
     camera_position = [0.0, config.camera_height, config.camera_forward_offset]
     for sensor_name in ("rgb_sensor", "depth_sensor"):

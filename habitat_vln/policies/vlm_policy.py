@@ -11,7 +11,6 @@ except ImportError:
     from core import NavigationObservation, PolicyOutput
 
 from .prompts import (
-    ADVISORY_ACTIONS,
     EXPLORATION_ACTIONS,
     VALID_ACTIONS,
     build_navigation_prompt,
@@ -25,22 +24,13 @@ class MockVLMPolicy:
 
     def __init__(self, allowed_actions=None):
         self.allowed_actions = set(allowed_actions or EXPLORATION_ACTIONS)
-        if self.allowed_actions <= ADVISORY_ACTIONS:
-            self._actions = [
-                "follow_goal",
-                "follow_goal",
-                "turn_left_to_avoid",
-                "follow_goal",
-                "turn_right_to_avoid",
-            ]
-        else:
-            self._actions = [
-                "turn_left",
-                "move_forward",
-                "move_forward",
-                "turn_right",
-                "move_forward",
-            ]
+        self._actions = [
+            "turn_left",
+            "move_forward",
+            "move_forward",
+            "turn_right",
+            "move_forward",
+        ]
 
     def predict(
         self,
@@ -247,9 +237,7 @@ class QwenVLMPolicy:
         return action
 
     def _validate_allowed_actions(self, allowed_actions):
-        invalid_actions = set(allowed_actions) - (
-            VALID_ACTIONS | ADVISORY_ACTIONS
-        )
+        invalid_actions = set(allowed_actions) - VALID_ACTIONS
         if invalid_actions:
             raise ValueError(f"Invalid actions: {sorted(invalid_actions)}")
         if not allowed_actions:

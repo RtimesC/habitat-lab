@@ -5,15 +5,12 @@ try:
     from .control import (
         ControllerConfig,
         NavigationController,
-        action_from_advice,
         enough_depth,
-        geometric_navigation_action,
-        navigation_fallback_action,
+        local_safety_turn,
     )
-    from .core import load_experiment_config
+    from .core import load_building_prior, load_experiment_config
     from .envs import (
         ACTION_MAP,
-        DEFAULT_TASK_CONFIG,
         NavigationStateBuilder,
         build_env,
         depth_percentile,
@@ -22,23 +19,12 @@ try:
         depth_stats,
         depth_to_meters,
         env_config,
-        get_goal_position,
-        normalize_angle_deg,
-        optional_float,
-        pointgoal_from_agent_state,
-        pointgoal_from_observation,
-        pointgoal_state,
-        success_distance,
     )
     from .policies import (
-        ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
-        DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
         VALID_ACTIONS,
         MockVLMPolicy,
-        NaVIDAChunkPolicy,
-        OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
     )
     from .runtime import (
@@ -66,15 +52,12 @@ except ImportError:
     from control import (
         ControllerConfig,
         NavigationController,
-        action_from_advice,
         enough_depth,
-        geometric_navigation_action,
-        navigation_fallback_action,
+        local_safety_turn,
     )
-    from core import load_experiment_config
+    from core import load_building_prior, load_experiment_config
     from envs import (
         ACTION_MAP,
-        DEFAULT_TASK_CONFIG,
         NavigationStateBuilder,
         build_env,
         depth_percentile,
@@ -83,23 +66,12 @@ except ImportError:
         depth_stats,
         depth_to_meters,
         env_config,
-        get_goal_position,
-        normalize_angle_deg,
-        optional_float,
-        pointgoal_from_agent_state,
-        pointgoal_from_observation,
-        pointgoal_state,
-        success_distance,
     )
     from policies import (
-        ADVISORY_ACTIONS,
         DEFAULT_MODEL_ID,
-        DEFAULT_OFFICIAL_NAVIDA_URL,
         EXPLORATION_ACTIONS,
         VALID_ACTIONS,
         MockVLMPolicy,
-        NaVIDAChunkPolicy,
-        OfficialNaVIDAHTTPPolicy,
         QwenVLMPolicy,
     )
     from runtime import (
@@ -133,23 +105,14 @@ _STATE_API_COMPATIBILITY_EXPORTS = (
     depth_stats,
     depth_to_meters,
     env_config,
-    get_goal_position,
-    normalize_angle_deg,
-    optional_float,
-    pointgoal_from_agent_state,
-    pointgoal_from_observation,
-    pointgoal_state,
-    success_distance,
 )
 
 _CONTROL_API_COMPATIBILITY_EXPORTS = (
-    action_from_advice,
     enough_depth,
-    geometric_navigation_action,
-    navigation_fallback_action,
+    local_safety_turn,
 )
 
-_ENV_API_COMPATIBILITY_EXPORTS = (ACTION_MAP, DEFAULT_TASK_CONFIG, build_env)
+_ENV_API_COMPATIBILITY_EXPORTS = (ACTION_MAP, build_env)
 
 _SCHEDULER_API_COMPATIBILITY_EXPORTS = (
     BackgroundPolicyInference,
@@ -190,7 +153,17 @@ def parse_args(argv=None):
             "command-line arguments take precedence."
         ),
     )
-    parser.add_argument("--task-config", default=DEFAULT_TASK_CONFIG)
+    parser.add_argument(
+        "--task-config",
+        help="Semantic-indoor Habitat task config. This must be supplied explicitly.",
+    )
+    parser.add_argument(
+        "--building-prior-file",
+        help=(
+            "Optional target-free JSON weak prior. Allowed fields are validated "
+            "before the policy can see them."
+        ),
+    )
     parser.add_argument("--dataset-split")
     parser.add_argument("--dataset-path")
     parser.add_argument("--scenes-dir")
@@ -203,6 +176,15 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument("--num-episodes", type=int, default=1)
+    parser.add_argument(
+        "--episode-start-index",
+        type=int,
+        default=0,
+        help=(
+            "Skip this many dataset episodes before running. Use with a new "
+            "output directory to resume an interrupted batch."
+        ),
+    )
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument(
         "--adapter-path",
@@ -268,13 +250,23 @@ def parse_args(argv=None):
         help="Saved-video playback rate. Defaults to the active visual frequency.",
     )
     parser.add_argument(
-        "--frequency-mode",
-        choices=["auto", "layered", "joint"],
-        default="auto",
+        "--no-artifacts",
+        action="store_true",
         help=(
-            "auto uses layered timing for advisor mode and joint timing for "
-            "controller mode."
+            "Do not save per-step frames or videos. Keep trajectory CSV logs "
+            "for batch benchmark runs."
         ),
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Hide per-step logs while retaining episode and final summaries.",
+    )
+    parser.add_argument(
+        "--frequency-mode",
+        choices=["joint"],
+        default="joint",
+        help="Direct semantic decisions use one joint visual-plus-inference loop.",
     )
     parser.add_argument(
         "--vision-hz",
@@ -312,65 +304,14 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--qwen-role",
-        choices=["advisor", "controller"],
-        default="advisor",
-        help="Use Qwen as a high-level advisor or direct low-level controller.",
-    )
-    parser.add_argument(
-        "--advisor-fallback",
-        choices=sorted(ADVISORY_ACTIONS),
-        default="follow_goal",
-        help="Fallback advisory action when Qwen output cannot be parsed.",
+        choices=["controller"],
+        default="controller",
+        help="The active semantic task uses direct model actions plus local safety.",
     )
     parser.add_argument(
         "--no-stop",
         action="store_true",
         help="Disable stop. Useful only for open-ended exploration, not standard VLN.",
-    )
-    parser.add_argument(
-        "--allow-early-stop",
-        action="store_true",
-        help="Allow stop before --min-stop-step.",
-    )
-    parser.add_argument(
-        "--force-stop-within-success-radius",
-        action="store_true",
-        help="Guarded evaluation: force stop when privileged goal distance is successful.",
-    )
-    parser.add_argument(
-        "--min-stop-step",
-        type=int,
-        default=8,
-        help="Reject stop before this step unless --allow-early-stop is set.",
-    )
-    parser.add_argument(
-        "--disable-anti-stuck",
-        action="store_true",
-        help="Disable repeated-turn overrides.",
-    )
-    parser.add_argument(
-        "--max-repeated-turns",
-        type=int,
-        default=2,
-        help="Override repeated same-direction turns after this count.",
-    )
-    parser.add_argument(
-        "--max-no-progress-steps",
-        type=int,
-        default=2,
-        help="Override repeated turns after this many no-progress steps.",
-    )
-    parser.add_argument(
-        "--anti-stuck-forward-depth",
-        type=float,
-        default=0.35,
-        help="Require this much center depth before anti-stuck moves forward.",
-    )
-    parser.add_argument(
-        "--anti-stuck-max-goal-angle",
-        type=float,
-        default=30.0,
-        help="Only anti-stuck forward when the target angle is within this range.",
     )
     parser.add_argument(
         "--enable-forward-depth-guard",
@@ -388,43 +329,7 @@ def parse_args(argv=None):
             "Minimum center depth in metres for guarded move_forward actions."
         ),
     )
-    policy_group = parser.add_mutually_exclusive_group()
-    policy_group.add_argument("--mock-policy", action="store_true")
-    policy_group.add_argument(
-        "--navida-chunk-policy",
-        action="store_true",
-        help="Use a NaVIDA adapter to generate and execute structured action chunks.",
-    )
-    policy_group.add_argument(
-        "--official-navida-http",
-        action="store_true",
-        help="Use the separately hosted Official NaVIDA HTTP policy.",
-    )
-    parser.add_argument(
-        "--official-navida-url",
-        default=DEFAULT_OFFICIAL_NAVIDA_URL,
-        help="Base URL of the Official NaVIDA policy server.",
-    )
-    parser.add_argument(
-        "--official-navida-timeout",
-        type=float,
-        default=30.0,
-        help="HTTP timeout in seconds for each Official NaVIDA request.",
-    )
-    parser.add_argument(
-        "--policy-protocol",
-        choices=["paper_pure"],
-        help="Execution protocol for Official NaVIDA HTTP mode.",
-    )
-    parser.add_argument("--navida-max-history-frames", type=int, default=8)
-    parser.add_argument(
-        "--navida-max-executed-actions",
-        type=int,
-        default=1,
-        help=(
-            "Actions kept from each NaVIDA chunk. Joint 1 Hz replanning requires 1."
-        ),
-    )
+    parser.add_argument("--mock-policy", action="store_true")
     config_args, _ = parser.parse_known_args(argv)
     experiment_config = None
     if config_args.experiment_config:
@@ -453,89 +358,46 @@ def main():
     args = parse_args()
     if args.robot_camera_height <= 0:
         raise ValueError("--robot-camera-height must be greater than zero")
+    if args.episode_start_index < 0:
+        raise ValueError("--episode-start-index must be zero or greater")
+    if not args.task_config:
+        raise ValueError(
+            "--task-config is required. Supply the semantic-indoor task adapter "
+            "instead of a legacy PointNav configuration."
+        )
+    legacy_config_markers = ("pointnav", "r2r", "hm3d", "navida")
+    if any(
+        marker in args.task_config.lower() for marker in legacy_config_markers
+    ):
+        raise ValueError(
+            "--task-config points to an archived target-navigation workflow. "
+            "Use a semantic-indoor task adapter instead."
+        )
+    args.building_prior = (
+        load_building_prior(args.building_prior_file)
+        if args.building_prior_file
+        else {}
+    )
     if args.experiment_name:
         print(
             f"experiment={args.experiment_name} "
             f"config={os.path.abspath(args.experiment_config)}"
         )
-    if args.official_navida_http:
-        if args.enable_forward_depth_guard:
-            raise ValueError(
-                "--enable-forward-depth-guard cannot be used with "
-                "--official-navida-http because paper_pure runs bypass "
-                "the controller."
-            )
-        if args.frequency_mode == "layered":
-            raise ValueError(
-                "--official-navida-http requires joint frequency mode"
-            )
-        if args.adapter_path:
-            raise ValueError(
-                "--official-navida-http cannot be combined with --adapter-path"
-            )
-        if args.no_stop:
-            raise ValueError("--official-navida-http cannot be combined with --no-stop")
-        args.frequency_mode = "joint"
-        args.policy_protocol = args.policy_protocol or "paper_pure"
-    else:
-        if args.policy_protocol is not None:
-            raise ValueError(
-                "--policy-protocol is only valid with --official-navida-http"
-            )
-        args.frequency_mode = resolve_frequency_mode(
-            args.frequency_mode,
-            args.qwen_role,
-        )
+    args.frequency_mode = "joint"
     validate_frequencies(args)
     os.makedirs(args.output_dir, exist_ok=True)
     args.execution_actions = (
         set(EXPLORATION_ACTIONS) if args.no_stop else set(VALID_ACTIONS)
     )
-    args.allowed_actions = (
-        set(ADVISORY_ACTIONS)
-        if args.qwen_role == "advisor"
-        else set(args.execution_actions)
-    )
-    policy_fallback_action = (
-        args.advisor_fallback
-        if args.qwen_role == "advisor"
-        else args.fallback_action
-    )
+    args.allowed_actions = set(args.execution_actions)
+    policy_fallback_action = args.fallback_action
     if args.fallback_action not in args.execution_actions:
         raise ValueError(
             f"--fallback-action must be one of {sorted(args.execution_actions)} "
             "with the current --no-stop setting."
         )
 
-    if args.official_navida_http:
-        policy = OfficialNaVIDAHTTPPolicy(
-            base_url=args.official_navida_url,
-            timeout=args.official_navida_timeout,
-        )
-    elif args.navida_chunk_policy:
-        if args.qwen_role != "controller":
-            raise ValueError(
-                "--navida-chunk-policy requires --qwen-role controller"
-            )
-        if not args.adapter_path:
-            raise ValueError("--navida-chunk-policy requires --adapter-path")
-        if args.navida_max_executed_actions != 1:
-            raise ValueError(
-                "joint NaVIDA timing requires --navida-max-executed-actions 1 "
-                "so the model replans from the latest image at every 1 Hz tick"
-            )
-        policy = NaVIDAChunkPolicy(
-            model_id=args.model_id,
-            adapter_path=args.adapter_path,
-            fallback_action=policy_fallback_action,
-            max_history_frames=args.navida_max_history_frames,
-            max_executed_actions=args.navida_max_executed_actions,
-            device_map=args.device_map,
-            load_in_4bit=args.load_in_4bit,
-            bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
-            max_new_tokens=max(args.max_new_tokens, 64),
-        )
-    elif args.mock_policy:
+    if args.mock_policy:
         policy = MockVLMPolicy(allowed_actions=args.allowed_actions)
     else:
         policy = QwenVLMPolicy(
@@ -550,11 +412,7 @@ def main():
             adapter_path=args.adapter_path,
         )
 
-    controller = (
-        None
-        if args.official_navida_http
-        else NavigationController(ControllerConfig.from_args(args))
-    )
+    controller = NavigationController(ControllerConfig.from_args(args))
     env = build_env(
         task_config=args.task_config,
         width=args.width,

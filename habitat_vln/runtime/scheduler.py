@@ -1,4 +1,4 @@
-"""Inference scheduling for layered advisor and joint controller modes."""
+"""Inference scheduling for direct joint semantic-navigation decisions."""
 
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -12,10 +12,13 @@ except ImportError:
 
 
 def resolve_frequency_mode(frequency_mode, qwen_role):
-    """Resolve automatic timing from the advisor/controller role."""
-    if frequency_mode == "auto":
-        return "layered" if qwen_role == "advisor" else "joint"
-    return frequency_mode
+    """Keep the active runtime on one joint visual-plus-inference clock."""
+    del qwen_role
+    if frequency_mode not in {"auto", "joint"}:
+        raise ValueError(
+            "semantic indoor navigation supports only joint timing"
+        )
+    return "joint"
 
 
 def active_frequencies(args):
@@ -39,10 +42,9 @@ def validate_frequencies(args):
         raise ValueError(
             "--inference-hz cannot exceed --vision-hz in layered mode"
         )
-    if args.frequency_mode == "layered" and args.qwen_role != "advisor":
+    if args.frequency_mode != "joint":
         raise ValueError(
-            "layered frequency mode requires --qwen-role advisor; "
-            "use joint mode when the model directly controls navigation"
+            "semantic indoor navigation requires joint frequency mode"
         )
 
 

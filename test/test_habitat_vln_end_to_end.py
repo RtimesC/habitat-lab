@@ -12,7 +12,9 @@ from habitat_vln.envs import ACTION_MAP
 from habitat_vln.habitat_vln_nav import main
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MOCK_CONFIG = PROJECT_ROOT / "habitat_vln/configs/runtime/mock_hm3d_smoke.yaml"
+MOCK_CONFIG = (
+    PROJECT_ROOT / "habitat_vln/configs/runtime/semantic_indoor_mock.yaml"
+)
 
 
 class FakeHabitatEnv:
@@ -52,7 +54,6 @@ class FakeHabitatEnv:
         self.current_episode = None
         self.episode_over = False
         self.closed = False
-        self.distance = 2.0
         self.depth = 2.0
         self.steps = 0
 
@@ -61,36 +62,26 @@ class FakeHabitatEnv:
         return {
             "rgb": np.full((48, 64, 3), value, dtype=np.uint8),
             "depth": np.full((48, 64, 1), self.depth, dtype=np.float32),
-            "pointgoal_with_gps_compass": np.array(
-                [self.distance, 0.0], dtype=np.float32
-            ),
         }
 
     def reset(self):
-        self.distance = 2.0
         self.steps = 0
         self.episode_over = False
         self.current_episode = SimpleNamespace(
             episode_id="mock-episode",
             scene_id="mock-scene",
-            info={"instruction": "Move to the mock goal."},
-            goals=[SimpleNamespace(position=[0.0, 0.0, -2.0])],
+            info={"instruction": "Find the elevator area."},
         )
         return self._observation()
 
     def step(self, action):
         if action == ACTION_MAP["move_forward"]:
-            self.distance = max(0.0, self.distance - 0.25)
             self.agent_state.position[2] -= 0.25
         self.steps += 1
         return self._observation()
 
     def get_metrics(self):
-        return {
-            "distance_to_goal": self.distance,
-            "success": float(self.distance < 0.2),
-            "spl": 0.0,
-        }
+        return {"semantic_status": "unverified"}
 
     def close(self):
         self.closed = True
@@ -123,6 +114,10 @@ class HabitatVLNEndToEndTest(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 3)
             self.assertEqual(rows[0]["frequency_mode"], "joint")
+            self.assertEqual(
+                json.loads(rows[0]["environment_metrics"])["semantic_status"],
+                "unverified",
+            )
             self.assertEqual(rows[0]["vlm_action"], "turn_left")
             self.assertEqual(rows[1]["vlm_action"], "move_forward")
             self.assertEqual(rows[1]["action"], "move_forward")
