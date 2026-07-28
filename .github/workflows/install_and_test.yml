@@ -56,7 +56,7 @@ jobs:
       run: |-
         mypy --version
         # Keep the upstream type gate stable until Habitat VLN compatibility imports are typed.
-        mypy --exclude="^(docs/|habitat_vln/|yolo_archive/|test/test_habitat_vln_)|setup.py$"
+        mypy --exclude="^(docs/|habitat_vln/|test/test_habitat_vln_)|setup.py$"
 
   install_and_test_lab_ubuntu:
     runs-on: 4-core-ubuntu-gpu-t4
