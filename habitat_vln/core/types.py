@@ -50,7 +50,7 @@ class PolicyOutput:
 
 @runtime_checkable
 class NavigationPolicy(Protocol):
-    """Common policy interface shared by mock, Qwen, and NaVIDA policies."""
+    """Common target-free policy interface shared by Mock and Qwen policies."""
 
     def predict(self, observation: NavigationObservation) -> PolicyOutput:
         ...

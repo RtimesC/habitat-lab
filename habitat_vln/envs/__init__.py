@@ -2,11 +2,20 @@
 
 from .habitat_env import (
     ACTION_MAP,
-    DEFAULT_TASK_CONFIG,
     HabitatEnvironmentConfig,
     build_env,
     create_habitat_env,
     step_navigation_action,
+)
+from .habitat_state import (
+    HabitatNavigationState,
+    NavigationStateBuilder,
+    depth_percentile,
+    depth_region_summary,
+    depth_sensor_config,
+    depth_stats,
+    depth_to_meters,
+    env_config,
 )
 from .six_wheel_robot import (
     ROBOT_BODY_NONE,
@@ -15,28 +24,9 @@ from .six_wheel_robot import (
     SixWheelRobotConfig,
     SixWheelRobotEnvironment,
 )
-from .habitat_state import (
-    HabitatNavigationState,
-    NavigationStateBuilder,
-    build_navigation_context,
-    depth_percentile,
-    depth_region_summary,
-    depth_sensor_config,
-    depth_stats,
-    depth_to_meters,
-    env_config,
-    get_goal_position,
-    normalize_angle_deg,
-    optional_float,
-    pointgoal_from_agent_state,
-    pointgoal_from_observation,
-    pointgoal_state,
-    success_distance,
-)
 
 __all__ = [
     "ACTION_MAP",
-    "DEFAULT_TASK_CONFIG",
     "HabitatEnvironmentConfig",
     "HabitatNavigationState",
     "NavigationStateBuilder",
@@ -45,7 +35,6 @@ __all__ = [
     "ROBOT_VIEW_UUID",
     "SixWheelRobotConfig",
     "SixWheelRobotEnvironment",
-    "build_navigation_context",
     "build_env",
     "create_habitat_env",
     "depth_percentile",
@@ -54,12 +43,5 @@ __all__ = [
     "depth_stats",
     "depth_to_meters",
     "env_config",
-    "get_goal_position",
-    "normalize_angle_deg",
-    "optional_float",
-    "pointgoal_from_agent_state",
-    "pointgoal_from_observation",
-    "pointgoal_state",
-    "success_distance",
     "step_navigation_action",
 ]

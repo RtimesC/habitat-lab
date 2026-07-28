@@ -1,11 +1,10 @@
-# Legacy navigation experiments
+# Historical PointNav archive
 
-These scripts are retained as small historical experiments and do not use the
-current `core -> envs -> policies -> control -> runtime` navigation framework.
+These scripts and the PointNav/Oracle/NaVIDA/R2R/HM3D paths elsewhere in the
+repository are retained only for historical traceability. They are not part of
+the active project framework: do not run them, extend them, reuse their training
+data, or cite their metrics as evidence for indoor semantic navigation.
 
-- `qwen_habitat_sim_nav.py` drives Habitat-Sim directly with Qwen.
-- `pointnav_manual.py` is a keyboard-control example.
-- `pointnav_auto.py` is a simple distance-and-angle controller.
-- `pointnav_oracle.py` follows Habitat's shortest path.
-
-Use `habitat_vln/habitat_vln_nav.py` for current navigation work.
+The active project direction is [`../PROJECT_DIRECTION.md`](../PROJECT_DIRECTION.md).
+Its state, prompt, controller, and log contracts prohibit target coordinates,
+distance, angle, success radius, and shortest-path information.

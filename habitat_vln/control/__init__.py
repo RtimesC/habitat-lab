@@ -4,18 +4,14 @@ from .navigation_controller import (
     ControlDecision,
     ControllerConfig,
     NavigationController,
-    action_from_advice,
     enough_depth,
-    geometric_navigation_action,
-    navigation_fallback_action,
+    local_safety_turn,
 )
 
 __all__ = [
     "ControlDecision",
     "ControllerConfig",
     "NavigationController",
-    "action_from_advice",
     "enough_depth",
-    "geometric_navigation_action",
-    "navigation_fallback_action",
+    "local_safety_turn",
 ]

@@ -16,8 +16,6 @@ from .six_wheel_robot import (
     configure_six_wheel_sensors,
 )
 
-DEFAULT_TASK_CONFIG = "benchmark/nav/vln_r2r.yaml"
-
 ACTION_MAP = {
     "turn_left": HabitatSimActions.turn_left,
     "turn_right": HabitatSimActions.turn_right,
@@ -30,7 +28,7 @@ ACTION_MAP = {
 class HabitatEnvironmentConfig:
     """Inputs required to construct one Habitat navigation environment."""
 
-    task_config: str = DEFAULT_TASK_CONFIG
+    task_config: str
     width: int = 640
     height: int = 480
     hfov: int = 90
@@ -46,6 +44,8 @@ class HabitatEnvironmentConfig:
 
 def create_habitat_env(settings):
     """Create Habitat with dataset and visual-sensor overrides applied."""
+    if not settings.task_config:
+        raise ValueError("A semantic-indoor task config must be supplied")
     if settings.robot_body not in {ROBOT_BODY_NONE, ROBOT_BODY_SIX_WHEEL}:
         raise ValueError(
             "robot_body must be one of "
@@ -99,7 +99,7 @@ def create_habitat_env(settings):
 
 
 def build_env(
-    task_config=DEFAULT_TASK_CONFIG,
+    task_config,
     width=640,
     height=480,
     hfov=90,
@@ -112,7 +112,7 @@ def build_env(
     robot_camera_height=0.62,
     robot_debug_view=False,
 ):
-    """Compatibility wrapper around :func:`create_habitat_env`."""
+    """Build an environment from an explicit semantic-indoor task config."""
     return create_habitat_env(
         HabitatEnvironmentConfig(
             task_config=task_config,
