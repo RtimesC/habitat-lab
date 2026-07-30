@@ -8,10 +8,27 @@ from habitat_vln.baselines.reactive_doornav import (
     DoorNavState,
     DoorNavTerminationReason,
     LocalExecutionDecision,
-    LocalNavigationExecutor,
-    LocalSubgoal,
+    ReactiveVisualExecutor,
+    VisualTargetTrack,
+    VisualTargetTracker,
 )
 from habitat_vln.core import NavigationObservation
+
+
+def make_visual_track(**overrides):
+    """Build a valid image-space track with optional field overrides."""
+    values = {
+        "bbox_xyxy": (10, 20, 110, 220),
+        "center_x_norm": -0.1,
+        "center_y_norm": 0.2,
+        "area_ratio": 0.18,
+        "confidence": 0.85,
+        "visible": True,
+        "missing_steps": 0,
+        "source": "fake_tracker",
+    }
+    values.update(overrides)
+    return VisualTargetTrack(**values)
 
 
 class DoorNavContractTest(unittest.TestCase):
@@ -37,7 +54,7 @@ class DoorNavContractTest(unittest.TestCase):
                 "reached_door",
                 "target_not_found",
                 "target_lost",
-                "invalid_local_subgoal",
+                "invalid_visual_track",
                 "local_path_blocked",
                 "no_progress",
                 "search_step_limit",
@@ -111,108 +128,84 @@ class DoorNavContractTest(unittest.TestCase):
                         values["source"],
                     )
 
-    def test_local_subgoal_accepts_observable_robot_relative_target(self):
-        subgoal = LocalSubgoal(
-            target_type="doorway",
-            relative_x_m=1.8,
-            relative_y_m=-0.25,
-            desired_heading_rad=0.1,
-            stop_distance_m=0.45,
-            confidence=0.75,
-            source="rgb_visual_derivation",
-        )
+    def test_visual_target_track_accepts_valid_image_space_target(self):
+        track = make_visual_track()
 
-        self.assertEqual(subgoal.target_type, "doorway")
-        self.assertEqual(subgoal.relative_x_m, 1.8)
-        self.assertEqual(subgoal.relative_y_m, -0.25)
-        self.assertEqual(subgoal.desired_heading_rad, 0.1)
-        self.assertEqual(subgoal.stop_distance_m, 0.45)
-        self.assertEqual(subgoal.confidence, 0.75)
-        self.assertEqual(subgoal.source, "rgb_visual_derivation")
+        self.assertEqual(track.bbox_xyxy, (10, 20, 110, 220))
+        self.assertEqual(track.center_x_norm, -0.1)
+        self.assertEqual(track.center_y_norm, 0.2)
+        self.assertEqual(track.area_ratio, 0.18)
+        self.assertEqual(track.confidence, 0.85)
+        self.assertTrue(track.visible)
+        self.assertEqual(track.missing_steps, 0)
+        self.assertEqual(track.source, "fake_tracker")
 
-    def test_local_subgoal_allows_target_behind_robot_for_recovery(self):
-        subgoal = LocalSubgoal(
-            target_type="last_visible_doorway",
-            relative_x_m=-0.5,
-            relative_y_m=0.2,
-            desired_heading_rad=None,
-            stop_distance_m=0.4,
-            confidence=0.5,
-            source="short_rgb_history",
-        )
+    def test_visual_target_track_accepts_recently_missing_target(self):
+        track = make_visual_track(visible=False, missing_steps=2)
 
-        self.assertEqual(subgoal.relative_x_m, -0.5)
+        self.assertFalse(track.visible)
+        self.assertEqual(track.missing_steps, 2)
 
-    def test_local_subgoal_rejects_non_positive_stop_distance(self):
-        for stop_distance_m in [0.0, -0.1]:
-            with self.subTest(stop_distance_m=stop_distance_m):
-                with self.assertRaises(ValueError):
-                    LocalSubgoal(
-                        "doorway",
-                        1.0,
-                        0.0,
-                        None,
-                        stop_distance_m,
-                        0.8,
-                        "rgb_visual_derivation",
-                    )
-
-    def test_local_subgoal_rejects_non_finite_values(self):
-        valid_values = {
-            "target_type": "doorway",
-            "relative_x_m": 1.0,
-            "relative_y_m": 0.0,
-            "desired_heading_rad": 0.0,
-            "stop_distance_m": 0.4,
-            "confidence": 0.8,
-            "source": "rgb_visual_derivation",
-        }
-
-        for field in [
-            "relative_x_m",
-            "relative_y_m",
-            "desired_heading_rad",
-            "stop_distance_m",
-        ]:
-            for value in [math.nan, math.inf, -math.inf]:
-                with self.subTest(field=field, value=value):
-                    invalid_values = dict(valid_values)
-                    invalid_values[field] = value
-                    with self.assertRaises(ValueError):
-                        LocalSubgoal(**invalid_values)
-
-    def test_local_subgoal_rejects_out_of_range_confidence(self):
-        for confidence in [-0.01, 1.01, math.nan]:
-            with self.subTest(confidence=confidence):
-                with self.assertRaises(ValueError):
-                    LocalSubgoal(
-                        "doorway",
-                        1.0,
-                        0.0,
-                        None,
-                        0.4,
-                        confidence,
-                        "rgb_visual_derivation",
-                    )
-
-    def test_local_subgoal_rejects_empty_target_type_or_source(self):
-        invalid_values = [
-            {"target_type": "", "source": "rgb_visual_derivation"},
-            {"target_type": "doorway", "source": "  "},
+    def test_visual_target_track_rejects_invalid_bbox(self):
+        invalid_bboxes = [
+            (10, 20, 10, 220),
+            (10, 20, 110, 20),
+            (10, 20, 110),
+            (10, 20, 110, 220.0),
         ]
 
-        for values in invalid_values:
-            with self.subTest(values=values):
+        for bbox in invalid_bboxes:
+            with self.subTest(bbox=bbox):
                 with self.assertRaises(ValueError):
-                    LocalSubgoal(
-                        values["target_type"],
-                        1.0,
-                        0.0,
-                        None,
-                        0.4,
-                        0.8,
-                        values["source"],
-                    )
+                    make_visual_track(bbox_xyxy=bbox)
+
+    def test_visual_target_track_rejects_invalid_horizontal_center(self):
+        for value in [-1.01, 1.01, math.nan, math.inf, -math.inf]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    make_visual_track(center_x_norm=value)
+
+    def test_visual_target_track_rejects_invalid_vertical_center(self):
+        for value in [-1.01, 1.01, math.nan, math.inf, -math.inf]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    make_visual_track(center_y_norm=value)
+
+    def test_visual_target_track_rejects_invalid_area_ratio(self):
+        for value in [0.0, -0.01, 1.01, math.nan, math.inf, -math.inf]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    make_visual_track(area_ratio=value)
+
+    def test_visual_target_track_rejects_invalid_confidence(self):
+        for value in [-0.01, 1.01, math.nan, math.inf, -math.inf]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    make_visual_track(confidence=value)
+
+    def test_visual_target_track_rejects_invalid_missing_steps(self):
+        for value in [-1, 0.5, True]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    make_visual_track(missing_steps=value)
+
+    def test_visible_track_requires_zero_missing_steps(self):
+        with self.assertRaises(ValueError):
+            make_visual_track(visible=True, missing_steps=1)
+
+    def test_missing_track_requires_positive_missing_steps(self):
+        with self.assertRaises(ValueError):
+            make_visual_track(visible=False, missing_steps=0)
+
+    def test_visual_target_track_rejects_invalid_visible_or_source(self):
+        for overrides in [
+            {"visible": 1},
+            {"source": ""},
+            {"source": "  "},
+        ]:
+            with self.subTest(overrides=overrides):
+                with self.assertRaises(ValueError):
+                    make_visual_track(**overrides)
 
     def test_local_execution_decision_rejects_unknown_action(self):
         with self.assertRaises(ValueError):
@@ -220,8 +213,7 @@ class DoorNavContractTest(unittest.TestCase):
                 action="move_backward",
                 state=DoorNavState.APPROACH,
                 reason="door remains visible",
-                subgoal=None,
-                target_visible=True,
+                target_track=make_visual_track(),
                 obstacle_avoidance_active=False,
             )
 
@@ -229,27 +221,18 @@ class DoorNavContractTest(unittest.TestCase):
         candidate = DoorCandidate(
             (10, 20, 110, 220), 0.8, "door", "fake_grounder"
         )
-        subgoal = LocalSubgoal(
-            "doorway",
-            1.0,
-            0.0,
-            None,
-            0.4,
-            0.8,
-            "rgb_visual_derivation",
-        )
+        track = make_visual_track()
         decision = LocalExecutionDecision(
-            "move_forward",
-            DoorNavState.APPROACH,
-            "safe forward motion",
-            subgoal,
-            True,
-            False,
+            action="move_forward",
+            state=DoorNavState.APPROACH,
+            reason="door remains centered",
+            target_track=track,
+            obstacle_avoidance_active=False,
         )
 
         for instance, field, value in [
             (candidate, "confidence", 0.1),
-            (subgoal, "relative_x_m", 2.0),
+            (track, "area_ratio", 0.3),
             (decision, "action", "stop"),
         ]:
             with self.subTest(instance=type(instance).__name__):
@@ -269,19 +252,26 @@ class DoorNavContractTest(unittest.TestCase):
                     )
                 ]
 
+        class FakeTracker:
+            def reset(self):
+                return None
+
+            def update(self, rgb, candidates, step):
+                del rgb, candidates, step
+                return make_visual_track()
+
         class FakeExecutor:
             def reset(self):
                 return None
 
-            def step(self, observation, subgoal):
+            def step(self, observation, target):
                 del observation
                 return LocalExecutionDecision(
-                    "move_forward",
-                    DoorNavState.APPROACH,
-                    "safe forward motion",
-                    subgoal,
-                    True,
-                    False,
+                    action="move_forward",
+                    state=DoorNavState.APPROACH,
+                    reason="door remains centered",
+                    target_track=target,
+                    obstacle_avoidance_active=False,
                 )
 
         observation = NavigationObservation(
@@ -289,25 +279,19 @@ class DoorNavContractTest(unittest.TestCase):
             depth=None,
             instruction="Approach the visible door.",
         )
-        subgoal = LocalSubgoal(
-            "doorway",
-            1.0,
-            0.0,
-            None,
-            0.4,
-            0.8,
-            "rgb_visual_derivation",
-        )
         grounder = FakeGrounder()
+        tracker = FakeTracker()
         executor = FakeExecutor()
 
         self.assertIsInstance(grounder, DoorGrounder)
-        self.assertIsInstance(executor, LocalNavigationExecutor)
+        self.assertIsInstance(tracker, VisualTargetTracker)
+        self.assertIsInstance(executor, ReactiveVisualExecutor)
+        candidates = grounder.detect("rgb", observation.instruction)
+        target = tracker.update("rgb", candidates, step=0)
+        self.assertEqual(target.source, "fake_tracker")
         self.assertEqual(
-            grounder.detect("rgb", observation.instruction)[0].label, "door"
-        )
-        self.assertEqual(
-            executor.step(observation, subgoal).action, "move_forward"
+            executor.step(observation, target).action,
+            "move_forward",
         )
 
     def test_executor_accepts_navigation_observation_without_depth(self):
@@ -318,15 +302,14 @@ class DoorNavContractTest(unittest.TestCase):
             def reset(self):
                 return None
 
-            def step(self, observation, subgoal):
+            def step(self, observation, target):
                 self.received_depth = observation.depth
                 return LocalExecutionDecision(
-                    "move_forward",
-                    DoorNavState.APPROACH,
-                    "RGB target remains observable",
-                    subgoal,
-                    True,
-                    False,
+                    action="move_forward",
+                    state=DoorNavState.APPROACH,
+                    reason="RGB target remains observable",
+                    target_track=target,
+                    obstacle_avoidance_active=False,
                 )
 
         observation = NavigationObservation(
@@ -334,21 +317,39 @@ class DoorNavContractTest(unittest.TestCase):
             instruction="Approach the visible door.",
             depth=None,
         )
-        subgoal = LocalSubgoal(
-            "doorway",
-            1.0,
-            0.0,
-            None,
-            0.4,
-            0.8,
-            "rgb_visual_derivation",
-        )
         executor = FakeExecutor()
 
-        decision = executor.step(observation, subgoal)
+        decision = executor.step(observation, make_visual_track())
 
         self.assertIsNone(executor.received_depth)
         self.assertEqual(decision.action, "move_forward")
+
+    def test_executor_can_express_search_when_target_is_none(self):
+        class FakeExecutor:
+            def reset(self):
+                return None
+
+            def step(self, observation, target):
+                del observation, target
+                return LocalExecutionDecision(
+                    action="turn_left",
+                    state=DoorNavState.SEARCH,
+                    reason="no visual target is currently tracked",
+                    target_track=None,
+                    obstacle_avoidance_active=False,
+                )
+
+        decision = FakeExecutor().step(
+            NavigationObservation(
+                rgb="rgb",
+                instruction="Find the visible door.",
+                depth=None,
+            ),
+            None,
+        )
+
+        self.assertEqual(decision.state, DoorNavState.SEARCH)
+        self.assertIsNone(decision.target_track)
 
 
 if __name__ == "__main__":

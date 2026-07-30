@@ -1,11 +1,13 @@
 schema_version: 1
 name: reactive_doornav_b1
-description: Versioned Phase A specification for observable-only reactive visual DoorNav.
+description: Versioned Phase A specification for RGB-first, image-space, observable-only reactive visual DoorNav.
 status: scaffold_only
 instruction: Find and safely approach the visible doorway using current and recent visual observations.
 max_search_steps: 24
 max_episode_steps: 200
-observable_stop_distance_m: 0.45
+arrival_area_ratio_threshold: 0.18
+arrival_center_tolerance_norm: 0.15
+arrival_confirm_frames: 3
 grounding_confidence_threshold: 0.55
 target_lost_tolerance_steps: 3
 no_progress_tolerance_steps: 8

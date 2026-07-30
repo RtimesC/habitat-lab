@@ -38,6 +38,9 @@ PRIVILEGED_FIELD_DENYLIST: FrozenSet[str] = frozenset(
         "shortest_path",
         "geodesic_distance",
         "oracle_waypoint",
+        "global_x",
+        "global_y",
+        "waypoint_position",
     }
 )
 
@@ -61,13 +64,27 @@ class DoorNavTerminationReason(str, Enum):
     REACHED_DOOR = "reached_door"
     TARGET_NOT_FOUND = "target_not_found"
     TARGET_LOST = "target_lost"
-    INVALID_LOCAL_SUBGOAL = "invalid_local_subgoal"
+    INVALID_VISUAL_TRACK = "invalid_visual_track"
     LOCAL_PATH_BLOCKED = "local_path_blocked"
     NO_PROGRESS = "no_progress"
     SEARCH_STEP_LIMIT = "search_step_limit"
     EPISODE_STEP_LIMIT = "episode_step_limit"
     INVALID_OBSERVATION = "invalid_observation"
     POLICY_ERROR = "policy_error"
+
+
+def _validate_bbox_xyxy(bbox_xyxy: Tuple[int, int, int, int]) -> None:
+    """Validate one image-space bounding box."""
+    if (
+        not isinstance(bbox_xyxy, tuple)
+        or len(bbox_xyxy) != 4
+        or any(type(value) is not int for value in bbox_xyxy)
+    ):
+        raise ValueError("bbox_xyxy must contain exactly four integers")
+
+    x1, y1, x2, y2 = bbox_xyxy
+    if x2 <= x1 or y2 <= y1:
+        raise ValueError("bbox_xyxy must satisfy x2 > x1 and y2 > y1")
 
 
 @dataclass(frozen=True)
@@ -80,17 +97,8 @@ class DoorCandidate:
     source: str
 
     def __post_init__(self):
-        """Reject malformed detections before they enter local estimation."""
-        if (
-            not isinstance(self.bbox_xyxy, tuple)
-            or len(self.bbox_xyxy) != 4
-            or any(type(value) is not int for value in self.bbox_xyxy)
-        ):
-            raise ValueError("bbox_xyxy must contain exactly four integers")
-
-        x1, y1, x2, y2 = self.bbox_xyxy
-        if x2 <= x1 or y2 <= y1:
-            raise ValueError("bbox_xyxy must satisfy x2 > x1 and y2 > y1")
+        """Reject malformed detections before they enter visual tracking."""
+        _validate_bbox_xyxy(self.bbox_xyxy)
         if not math.isfinite(self.confidence):
             raise ValueError("confidence must be finite")
         if not 0.0 <= self.confidence <= 1.0:
@@ -102,34 +110,33 @@ class DoorCandidate:
 
 
 @dataclass(frozen=True)
-class LocalSubgoal:
-    """An observable or model-produced target in the robot-local frame.
+class VisualTargetTrack:
+    """A current or recently visible doorway tracked in RGB image space.
 
-    It may come from RGB visual target derivation, a future navigation model's
-    local waypoint, or other observable target-free local perception. The
-    contract requires no particular depth sensor and contains neither global
-    coordinates nor a hidden Habitat target.
+    Normalized centers use ``[-1, 1]``: horizontal values run from left to
+    right, while vertical values run from top to bottom. ``area_ratio`` is an
+    observable image fraction, not a physical distance estimate.
     """
 
-    target_type: str
-    relative_x_m: float
-    relative_y_m: float
-    desired_heading_rad: Optional[float]
-    stop_distance_m: float
+    bbox_xyxy: Tuple[int, int, int, int]
+    center_x_norm: float
+    center_y_norm: float
+    area_ratio: float
     confidence: float
+    visible: bool
+    missing_steps: int
     source: str
 
     def __post_init__(self):
-        """Reject invalid local geometry and untraceable target sources."""
-        finite_values = {
-            "relative_x_m": self.relative_x_m,
-            "relative_y_m": self.relative_y_m,
-            "stop_distance_m": self.stop_distance_m,
+        """Reject malformed image-space tracks and inconsistent visibility."""
+        _validate_bbox_xyxy(self.bbox_xyxy)
+
+        for name, value in {
+            "center_x_norm": self.center_x_norm,
+            "center_y_norm": self.center_y_norm,
+            "area_ratio": self.area_ratio,
             "confidence": self.confidence,
-        }
-        if self.desired_heading_rad is not None:
-            finite_values["desired_heading_rad"] = self.desired_heading_rad
-        for name, value in finite_values.items():
+        }.items():
             try:
                 is_finite = math.isfinite(value)
             except TypeError as error:
@@ -137,15 +144,22 @@ class LocalSubgoal:
             if not is_finite:
                 raise ValueError(f"{name} must be finite")
 
-        if self.stop_distance_m <= 0.0:
-            raise ValueError("stop_distance_m must be greater than zero")
+        if not -1.0 <= self.center_x_norm <= 1.0:
+            raise ValueError("center_x_norm must be between -1 and 1")
+        if not -1.0 <= self.center_y_norm <= 1.0:
+            raise ValueError("center_y_norm must be between -1 and 1")
+        if not 0.0 < self.area_ratio <= 1.0:
+            raise ValueError("area_ratio must be greater than 0 and at most 1")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
-        if (
-            not isinstance(self.target_type, str)
-            or not self.target_type.strip()
-        ):
-            raise ValueError("target_type must be a non-empty string")
+        if type(self.visible) is not bool:
+            raise ValueError("visible must be a boolean")
+        if type(self.missing_steps) is not int or self.missing_steps < 0:
+            raise ValueError("missing_steps must be a non-negative integer")
+        if self.visible and self.missing_steps != 0:
+            raise ValueError("a visible track must have zero missing_steps")
+        if not self.visible and self.missing_steps == 0:
+            raise ValueError("a missing track must have at least one missing step")
         if not isinstance(self.source, str) or not self.source.strip():
             raise ValueError("source must be a non-empty string")
 
@@ -157,8 +171,7 @@ class LocalExecutionDecision:
     action: str
     state: DoorNavState
     reason: str
-    subgoal: Optional[LocalSubgoal]
-    target_visible: bool
+    target_track: Optional[VisualTargetTrack]
     obstacle_avoidance_active: bool
 
     def __post_init__(self):
@@ -178,8 +191,24 @@ class DoorGrounder(Protocol):
 
 
 @runtime_checkable
-class LocalNavigationExecutor(Protocol):
-    """Execute observable robot-local subgoals without privileged target geometry."""
+class VisualTargetTracker(Protocol):
+    """Track doorway candidates using RGB image-space evidence only."""
+
+    def reset(self) -> None:
+        ...
+
+    def update(
+        self,
+        rgb: Any,
+        candidates: Sequence[DoorCandidate],
+        step: int,
+    ) -> Optional[VisualTargetTrack]:
+        ...
+
+
+@runtime_checkable
+class ReactiveVisualExecutor(Protocol):
+    """Choose atomic actions from observable visual and target-free context."""
 
     def reset(self) -> None:
         ...
@@ -187,6 +216,6 @@ class LocalNavigationExecutor(Protocol):
     def step(
         self,
         observation: NavigationObservation,
-        subgoal: LocalSubgoal,
+        target: Optional[VisualTargetTrack],
     ) -> LocalExecutionDecision:
         ...

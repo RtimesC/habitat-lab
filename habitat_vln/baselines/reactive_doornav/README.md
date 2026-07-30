@@ -35,12 +35,12 @@ geometry to the policy. Phase A does not select a real-robot depth sensor.
 Hidden target coordinates, target distance, target bearing, success radius,
 shortest path, geodesic route, and Oracle waypoint are forbidden. These values,
 along with any progress, automatic STOP, steering, or recovery derived from
-hidden target state, must never enter the grounder, visual target selector,
-state machine, or local executor.
+hidden target state, must never enter the grounder, visual tracker, state
+machine, or reactive visual executor.
 
 An evaluator may read privileged simulator information offline for diagnostics.
-That information cannot be returned to the policy, grounder, visual target
-selector, state machine, or controller.
+That information cannot be returned to the policy, grounder, visual tracker,
+state machine, or controller.
 
 ## Proposed data flow
 
@@ -48,39 +48,41 @@ selector, state machine, or controller.
 instruction + current/recent RGB
         |
         v
-DoorGrounder / visual target selector
+DoorGrounder
         |
         v
 DoorCandidate
         |
         v
-observable local-subgoal derivation
+VisualTargetTracker
         |
         v
-LocalSubgoal
+VisualTargetTrack
         |
         v                 optional target-free platform safety adapter
-shared LocalNavigationExecutor <--- collision / local obstacle signal
+ReactiveVisualExecutor <--------- collision / local obstacle signal
         |
         v
-observable arrival verification
+move_forward / turn_left / turn_right / stop
 ```
 
-`LocalSubgoal` uses the robot's local coordinate frame. `relative_x_m` is
-forward distance. `relative_y_m` is lateral displacement, positive to the
-robot's left and negative to its right. A normal doorway approach usually has a
-positive `relative_x_m`; negative values remain valid for local recovery from
-short observable history. The contract contains no global position, Habitat
-episode target, or route information.
+`VisualTargetTrack` is an image-space observation record, not a physical
+distance estimate. Its normalized horizontal center indicates whether the
+tracked doorway lies left or right of the image center and can support choosing
+`turn_left` or `turn_right`. Its bounding-box area ratio is an observable
+approach cue: growth may indicate that the doorway occupies more of the current
+view. It is not absolute physical distance truth and must not be treated as one
+across different cameras, scenes, or doorway shapes.
 
-`LocalSubgoal` may come from:
+Current visibility, consecutive missing frames, and short-term track stability
+can support later `VERIFY` logic. Stage B and Stage C must experimentally
+calibrate any centering, area, and confirmation rules before they are treated as
+working arrival behavior. The Phase A thresholds are initial specifications
+only; they have not been validated.
 
-- RGB visual target derivation;
-- a future navigation-model waypoint;
-- other observable target-free local perception.
-
-These robot-local executor fields do not prescribe visual back-projection or
-any particular ranging sensor.
+Plain RGB bounding boxes do not provide metric robot-local position or absolute
+distance. B1 therefore does not derive a metric waypoint or metric stop
+threshold from `DoorCandidate`.
 
 ## Planned reactive state machine
 
@@ -101,27 +103,32 @@ their transition logic.
 
 ```text
 B1:
-Reactive visual target selector
-  -> shared local executor
+local instruction
+  -> RGB doorway grounding
+  -> visual tracking
+  -> reactive visual executor
 
-Future #8 method:
-Semantic belief + topology + active verification + recovery
-  -> same shared local executor
+Future #8:
+semantic belief + topology + active verification + recovery
+  -> selected local semantic target description
+  -> same RGB grounding/tracking/reactive executor
 
-Qwen-RobotNav-compatible path:
+Future waypoint-model integration is a separate adapter:
 RGB navigation model
   -> local waypoint trajectory
-  -> same shared local executor
+  -> future waypoint executor
 ```
 
-B1 isolates the local execution question so the future full method can share a
-target-free executor without inheriting a hidden-goal shortcut.
+The future #8 method can reuse B1 by selecting a local semantic target
+description for the same RGB grounding, tracking, and reactive execution path.
+A model-produced robot-local waypoint adapter is outside B1 Phase A. B1 must not
+take on a metric contract merely to anticipate a future waypoint model.
 
 ## Phase A status
 
 This phase contains contracts, validation, documentation, a future configuration
 specification, and fast leakage tests only. It does not implement a real door
-detector, visual target tracker, local navigation executor, state machine, or
+detector, visual target tracker, reactive visual executor, state machine, or
 DoorNav simulation. Mock objects and contract tests are not benchmark results,
 and no real navigation or stable navigation capability is claimed.
 
@@ -132,7 +139,9 @@ experiment loader. Its dedicated fields are:
 
 - `max_search_steps`;
 - `max_episode_steps`;
-- `observable_stop_distance_m`;
+- `arrival_area_ratio_threshold`;
+- `arrival_center_tolerance_norm`;
+- `arrival_confirm_frames`;
 - `grounding_confidence_threshold`;
 - `target_lost_tolerance_steps`;
 - `no_progress_tolerance_steps`.

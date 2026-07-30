@@ -8,8 +8,9 @@ from .contracts import (
     DoorNavState,
     DoorNavTerminationReason,
     LocalExecutionDecision,
-    LocalNavigationExecutor,
-    LocalSubgoal,
+    ReactiveVisualExecutor,
+    VisualTargetTrack,
+    VisualTargetTracker,
 )
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "DoorNavState",
     "DoorNavTerminationReason",
     "LocalExecutionDecision",
-    "LocalNavigationExecutor",
-    "LocalSubgoal",
+    "ReactiveVisualExecutor",
+    "VisualTargetTrack",
+    "VisualTargetTracker",
 ]
