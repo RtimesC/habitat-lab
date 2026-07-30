@@ -1,13 +1,12 @@
 schema_version: 1
 name: reactive_doornav_b1
-description: Versioned Phase A specification for observable-only reactive RGB-D DoorNav.
+description: Versioned Phase A specification for observable-only reactive visual DoorNav.
 status: scaffold_only
-instruction: Find and safely approach the visible doorway using local RGB-D evidence.
+instruction: Find and safely approach the visible doorway using current and recent visual observations.
 max_search_steps: 24
 max_episode_steps: 200
 observable_stop_distance_m: 0.45
 grounding_confidence_threshold: 0.55
 target_lost_tolerance_steps: 3
 no_progress_tolerance_steps: 8
-depth_safety_threshold_m: 0.35
 output_dir: habitat_vln/outputs/reactive_doornav/b1

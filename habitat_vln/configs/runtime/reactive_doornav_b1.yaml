@@ -2,5 +2,5 @@ schema_version: 1
 name: reactive_doornav_b1
 description: Supported common defaults for the future B1 runtime; not a complete DoorNav preset.
 arguments:
-  instruction: Find and safely approach the visible doorway using local RGB-D evidence.
+  instruction: Find and safely approach the visible doorway using current and recent visual observations.
   output_dir: habitat_vln/outputs/reactive_doornav/b1

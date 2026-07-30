@@ -1,12 +1,13 @@
-# Reactive RGB-D DoorNav B1
+# Reactive Visual DoorNav B1
 
 ## Research question
 
 B1 asks one deliberately local question:
 
-> When a door is detectable in the current RGB-D observation, or can be found
-> by a local rotation scan, can the robot safely approach the doorway, avoid
-> local obstacles, and stop under observable conditions?
+> When the target door can be detected in the current or recent RGB
+> observations, or discovered by a local rotation scan, can the robot select it
+> as a local visual target, approach it reliably, and stop based on observable
+> evidence?
 
 B1 does not answer building-scale semantic localization, topology inference,
 cross-floor planning, long-horizon recovery, or the full low-prior indoor
@@ -18,39 +19,48 @@ building navigation.
 Allowed inputs are:
 
 - a natural-language local objective;
-- current RGB and depth;
-- a short recent RGB or RGB-D history;
-- observable collision feedback and recent action history;
-- building weak priors accepted by the project's field whitelist.
+- the current RGB observation;
+- a short recent RGB history;
+- observable collision feedback;
+- recent action history;
+- whitelist-validated building weak priors;
+- optional platform-local safety signals when available.
+
+RGB is B1's core visual input. B1 does not require an RGB-D camera. It does not
+require Depth or LiDAR. Depth, LiDAR, proximity sensors, and similar local
+obstacle sensing may later be connected through an optional safety adapter.
+Such an adapter must remain target-free and cannot provide hidden target
+geometry to the policy. Phase A does not select a real-robot depth sensor.
 
 Hidden target coordinates, target distance, target bearing, success radius,
 shortest path, geodesic route, and Oracle waypoint are forbidden. These values,
 along with any progress, automatic STOP, steering, or recovery derived from
-hidden target state, must never enter the grounder, target estimator, state machine, or local executor.
+hidden target state, must never enter the grounder, visual target selector,
+state machine, or local executor.
 
 An evaluator may read privileged simulator information offline for diagnostics.
-That information cannot be returned to the policy, grounder, target estimator,
-state machine, or controller.
+That information cannot be returned to the policy, grounder, visual target
+selector, state machine, or controller.
 
 ## Proposed data flow
 
 ```text
-instruction + RGB-D
+instruction + current/recent RGB
         |
         v
-DoorGrounder
+DoorGrounder / visual target selector
         |
         v
 DoorCandidate
         |
         v
-RGB-D local target estimator
+observable local-subgoal derivation
         |
         v
 LocalSubgoal
         |
-        v
-shared LocalNavigationExecutor
+        v                 optional target-free platform safety adapter
+shared LocalNavigationExecutor <--- collision / local obstacle signal
         |
         v
 observable arrival verification
@@ -62,6 +72,15 @@ robot's left and negative to its right. A normal doorway approach usually has a
 positive `relative_x_m`; negative values remain valid for local recovery from
 short observable history. The contract contains no global position, Habitat
 episode target, or route information.
+
+`LocalSubgoal` may come from:
+
+- RGB visual target derivation;
+- a future navigation-model waypoint;
+- other observable target-free local perception.
+
+These robot-local executor fields do not prescribe visual back-projection or
+any particular ranging sensor.
 
 ## Planned reactive state machine
 
@@ -82,11 +101,16 @@ their transition logic.
 
 ```text
 B1:
-Reactive local target selector
+Reactive visual target selector
   -> shared local executor
 
-Future method:
+Future #8 method:
 Semantic belief + topology + active verification + recovery
+  -> same shared local executor
+
+Qwen-RobotNav-compatible path:
+RGB navigation model
+  -> local waypoint trajectory
   -> same shared local executor
 ```
 
@@ -97,9 +121,9 @@ target-free executor without inheriting a hidden-goal shortcut.
 
 This phase contains contracts, validation, documentation, a future configuration
 specification, and fast leakage tests only. It does not implement a real door
-detector, RGB-D target estimator, obstacle-avoidance executor, state machine, or
-DoorNav benchmark. Mock objects and contract tests are not benchmark results,
-and no stable navigation capability is claimed.
+detector, visual target tracker, local navigation executor, state machine, or
+DoorNav simulation. Mock objects and contract tests are not benchmark results,
+and no real navigation or stable navigation capability is claimed.
 
 The runtime YAML keeps currently supported common CLI values under `arguments`.
 The complete future settings live in [`baseline_spec.yaml`](baseline_spec.yaml),
@@ -111,8 +135,7 @@ experiment loader. Its dedicated fields are:
 - `observable_stop_distance_m`;
 - `grounding_confidence_threshold`;
 - `target_lost_tolerance_steps`;
-- `no_progress_tolerance_steps`;
-- `depth_safety_threshold_m`.
+- `no_progress_tolerance_steps`.
 
 The runtime file is therefore a small set of supported common defaults, not a
 claim that complete DoorNav can run today.

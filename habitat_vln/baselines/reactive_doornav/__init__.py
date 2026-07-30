@@ -1,4 +1,4 @@
-"""Public contracts for the reactive RGB-D DoorNav B1 baseline."""
+"""Public contracts for the reactive visual DoorNav B1 baseline."""
 
 from .contracts import (
     DOORNAV_ACTIONS,

@@ -37,7 +37,7 @@ class DoorNavContractTest(unittest.TestCase):
                 "reached_door",
                 "target_not_found",
                 "target_lost",
-                "invalid_depth",
+                "invalid_local_subgoal",
                 "local_path_blocked",
                 "no_progress",
                 "search_step_limit",
@@ -119,7 +119,7 @@ class DoorNavContractTest(unittest.TestCase):
             desired_heading_rad=0.1,
             stop_distance_m=0.45,
             confidence=0.75,
-            source="rgbd_projection",
+            source="rgb_visual_derivation",
         )
 
         self.assertEqual(subgoal.target_type, "doorway")
@@ -128,7 +128,7 @@ class DoorNavContractTest(unittest.TestCase):
         self.assertEqual(subgoal.desired_heading_rad, 0.1)
         self.assertEqual(subgoal.stop_distance_m, 0.45)
         self.assertEqual(subgoal.confidence, 0.75)
-        self.assertEqual(subgoal.source, "rgbd_projection")
+        self.assertEqual(subgoal.source, "rgb_visual_derivation")
 
     def test_local_subgoal_allows_target_behind_robot_for_recovery(self):
         subgoal = LocalSubgoal(
@@ -138,7 +138,7 @@ class DoorNavContractTest(unittest.TestCase):
             desired_heading_rad=None,
             stop_distance_m=0.4,
             confidence=0.5,
-            source="short_rgbd_history",
+            source="short_rgb_history",
         )
 
         self.assertEqual(subgoal.relative_x_m, -0.5)
@@ -154,7 +154,7 @@ class DoorNavContractTest(unittest.TestCase):
                         None,
                         stop_distance_m,
                         0.8,
-                        "rgbd_projection",
+                        "rgb_visual_derivation",
                     )
 
     def test_local_subgoal_rejects_non_finite_values(self):
@@ -165,7 +165,7 @@ class DoorNavContractTest(unittest.TestCase):
             "desired_heading_rad": 0.0,
             "stop_distance_m": 0.4,
             "confidence": 0.8,
-            "source": "rgbd_projection",
+            "source": "rgb_visual_derivation",
         }
 
         for field in [
@@ -192,12 +192,12 @@ class DoorNavContractTest(unittest.TestCase):
                         None,
                         0.4,
                         confidence,
-                        "rgbd_projection",
+                        "rgb_visual_derivation",
                     )
 
     def test_local_subgoal_rejects_empty_target_type_or_source(self):
         invalid_values = [
-            {"target_type": "", "source": "rgbd_projection"},
+            {"target_type": "", "source": "rgb_visual_derivation"},
             {"target_type": "doorway", "source": "  "},
         ]
 
@@ -230,7 +230,13 @@ class DoorNavContractTest(unittest.TestCase):
             (10, 20, 110, 220), 0.8, "door", "fake_grounder"
         )
         subgoal = LocalSubgoal(
-            "doorway", 1.0, 0.0, None, 0.4, 0.8, "rgbd_projection"
+            "doorway",
+            1.0,
+            0.0,
+            None,
+            0.4,
+            0.8,
+            "rgb_visual_derivation",
         )
         decision = LocalExecutionDecision(
             "move_forward",
@@ -280,11 +286,17 @@ class DoorNavContractTest(unittest.TestCase):
 
         observation = NavigationObservation(
             rgb="rgb",
-            depth="depth",
+            depth=None,
             instruction="Approach the visible door.",
         )
         subgoal = LocalSubgoal(
-            "doorway", 1.0, 0.0, None, 0.4, 0.8, "rgbd_projection"
+            "doorway",
+            1.0,
+            0.0,
+            None,
+            0.4,
+            0.8,
+            "rgb_visual_derivation",
         )
         grounder = FakeGrounder()
         executor = FakeExecutor()
@@ -297,6 +309,46 @@ class DoorNavContractTest(unittest.TestCase):
         self.assertEqual(
             executor.step(observation, subgoal).action, "move_forward"
         )
+
+    def test_executor_accepts_navigation_observation_without_depth(self):
+        class FakeExecutor:
+            def __init__(self):
+                self.received_depth = "not_called"
+
+            def reset(self):
+                return None
+
+            def step(self, observation, subgoal):
+                self.received_depth = observation.depth
+                return LocalExecutionDecision(
+                    "move_forward",
+                    DoorNavState.APPROACH,
+                    "RGB target remains observable",
+                    subgoal,
+                    True,
+                    False,
+                )
+
+        observation = NavigationObservation(
+            rgb="rgb",
+            instruction="Approach the visible door.",
+            depth=None,
+        )
+        subgoal = LocalSubgoal(
+            "doorway",
+            1.0,
+            0.0,
+            None,
+            0.4,
+            0.8,
+            "rgb_visual_derivation",
+        )
+        executor = FakeExecutor()
+
+        decision = executor.step(observation, subgoal)
+
+        self.assertIsNone(executor.received_depth)
+        self.assertEqual(decision.action, "move_forward")
 
 
 if __name__ == "__main__":

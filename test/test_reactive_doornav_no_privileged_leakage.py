@@ -83,10 +83,42 @@ class DoorNavNoPrivilegedLeakageTest(unittest.TestCase):
             with self.subTest(forbidden_input=forbidden_input):
                 self.assertIn(forbidden_input, readme)
         self.assertIn(
-            "must never enter the grounder, target estimator, state machine, "
-            "or local executor",
+            "must never enter the grounder, visual target selector",
             readme,
         )
+        self.assertIn("state machine, or local executor", readme)
+
+    def test_b1_docs_and_configs_are_rgb_first_and_sensor_neutral(self):
+        readme = README_PATH.read_text(encoding="utf-8").casefold()
+
+        self.assertIn("rgb is b1's core visual input", readme)
+        self.assertIn("b1 does not require an rgb-d camera", readme)
+        self.assertEqual(readme.count("rgb-d"), 1)
+        self.assertIn(
+            "optional target-free platform safety adapter",
+            readme,
+        )
+        for forbidden_requirement in [
+            "instruction + rgb-d",
+            "rgb-d local target",
+            "current rgb and depth",
+            "depth_safety_threshold_m",
+        ]:
+            with self.subTest(forbidden_requirement=forbidden_requirement):
+                self.assertNotIn(forbidden_requirement, readme)
+
+        for path in [CONFIG_PATH, BASELINE_SPEC_PATH]:
+            config_text = path.read_text(encoding="utf-8").casefold()
+            for forbidden_requirement in [
+                "rgb-d",
+                "depth camera",
+                "depth_safety_threshold_m",
+            ]:
+                with self.subTest(
+                    path=path.name,
+                    forbidden_requirement=forbidden_requirement,
+                ):
+                    self.assertNotIn(forbidden_requirement, config_text)
 
     def test_future_config_has_no_privileged_target_fields(self):
         for path in [CONFIG_PATH, BASELINE_SPEC_PATH]:
@@ -130,7 +162,6 @@ class DoorNavNoPrivilegedLeakageTest(unittest.TestCase):
                     "grounding_confidence_threshold",
                     "target_lost_tolerance_steps",
                     "no_progress_tolerance_steps",
-                    "depth_safety_threshold_m",
                 ]
             },
             {
@@ -140,7 +171,6 @@ class DoorNavNoPrivilegedLeakageTest(unittest.TestCase):
                 "grounding_confidence_threshold": 0.55,
                 "target_lost_tolerance_steps": 3,
                 "no_progress_tolerance_steps": 8,
-                "depth_safety_threshold_m": 0.35,
             },
         )
         self.assertEqual(specification["status"], "scaffold_only")

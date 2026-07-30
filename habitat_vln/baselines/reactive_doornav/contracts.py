@@ -1,4 +1,4 @@
-"""Observable-only public contracts for reactive RGB-D DoorNav."""
+"""Observable-only public contracts for reactive visual DoorNav."""
 
 import math
 from dataclasses import dataclass
@@ -61,7 +61,7 @@ class DoorNavTerminationReason(str, Enum):
     REACHED_DOOR = "reached_door"
     TARGET_NOT_FOUND = "target_not_found"
     TARGET_LOST = "target_lost"
-    INVALID_DEPTH = "invalid_depth"
+    INVALID_LOCAL_SUBGOAL = "invalid_local_subgoal"
     LOCAL_PATH_BLOCKED = "local_path_blocked"
     NO_PROGRESS = "no_progress"
     SEARCH_STEP_LIMIT = "search_step_limit"
@@ -103,7 +103,13 @@ class DoorCandidate:
 
 @dataclass(frozen=True)
 class LocalSubgoal:
-    """A target estimated from RGB-D in the robot's local coordinate frame."""
+    """An observable or model-produced target in the robot-local frame.
+
+    It may come from RGB visual target derivation, a future navigation model's
+    local waypoint, or other observable target-free local perception. The
+    contract requires no particular depth sensor and contains neither global
+    coordinates nor a hidden Habitat target.
+    """
 
     target_type: str
     relative_x_m: float
@@ -173,7 +179,7 @@ class DoorGrounder(Protocol):
 
 @runtime_checkable
 class LocalNavigationExecutor(Protocol):
-    """Execute local RGB-D subgoals without Habitat target geometry."""
+    """Execute observable robot-local subgoals without privileged target geometry."""
 
     def reset(self) -> None:
         ...
