@@ -4,23 +4,15 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-import habitat
-from habitat.config import read_write
-from habitat.sims.habitat_simulator.actions import HabitatSimActions
-
-from .six_wheel_robot import (
-    ROBOT_BODY_NONE,
-    ROBOT_BODY_SIX_WHEEL,
-    SixWheelRobotConfig,
-    SixWheelRobotEnvironment,
-    configure_six_wheel_sensors,
-)
-
+# These are Habitat's stable default discrete-action identifiers. Keeping this
+# small mapping import-free lets Mock-environment unit tests run without Habitat-Sim.
+ROBOT_BODY_NONE = "none"
+ROBOT_BODY_SIX_WHEEL = "six_wheel"
 ACTION_MAP = {
-    "turn_left": HabitatSimActions.turn_left,
-    "turn_right": HabitatSimActions.turn_right,
-    "move_forward": HabitatSimActions.move_forward,
-    "stop": HabitatSimActions.stop,
+    "stop": 0,
+    "move_forward": 1,
+    "turn_left": 2,
+    "turn_right": 3,
 }
 
 
@@ -54,8 +46,23 @@ def create_habitat_env(settings):
     if settings.robot_camera_height <= 0:
         raise ValueError("robot_camera_height must be greater than zero")
 
+    try:
+        import habitat
+        from habitat.config import read_write
+    except ImportError as exc:
+        raise ImportError(
+            "Creating a Habitat environment requires habitat-lab and habitat-sim. "
+            "The lightweight unit-test environment intentionally does not install them."
+        ) from exc
+
     robot_config = None
     if settings.robot_body == ROBOT_BODY_SIX_WHEEL:
+        from .six_wheel_robot import (
+            SixWheelRobotConfig,
+            SixWheelRobotEnvironment,
+            configure_six_wheel_sensors,
+        )
+
         robot_config = SixWheelRobotConfig(
             camera_height=settings.robot_camera_height,
             debug_view=settings.robot_debug_view,
@@ -94,6 +101,7 @@ def create_habitat_env(settings):
 
     environment = habitat.Env(config=config)
     if robot_config is not None:
+        # Imported above only when the optional six-wheel body is requested.
         return SixWheelRobotEnvironment(environment, robot_config)
     return environment
 
