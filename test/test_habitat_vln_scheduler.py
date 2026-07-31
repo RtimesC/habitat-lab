@@ -16,8 +16,8 @@ from habitat_vln.runtime.scheduler import (
 
 def scheduler_args(**overrides):
     values = {
-        "frequency_mode": "layered",
-        "qwen_role": "advisor",
+        "frequency_mode": "joint",
+        "qwen_role": "controller",
         "vision_hz": 5.0,
         "inference_hz": 0.5,
         "joint_hz": 1.0,
@@ -49,22 +49,21 @@ class NavigationSchedulerTest(unittest.TestCase):
         self.assertGreaterEqual(duration_sec, 0.0)
         self.assertEqual(source_step, 3)
 
-    def test_auto_mode_follows_policy_role(self):
-        self.assertEqual(resolve_frequency_mode("auto", "advisor"), "layered")
+    def test_auto_mode_uses_joint_timing_for_every_policy_role(self):
+        self.assertEqual(resolve_frequency_mode("auto", "advisor"), "joint")
         self.assertEqual(resolve_frequency_mode("auto", "controller"), "joint")
 
-    def test_layered_and_joint_frequencies(self):
-        self.assertEqual(active_frequencies(scheduler_args()), (5.0, 0.5))
+    def test_joint_frequencies_match_the_joint_rate(self):
         self.assertEqual(
-            active_frequencies(scheduler_args(frequency_mode="joint")),
-            (1.0, 1.0),
+            active_frequencies(scheduler_args(joint_hz=1.5)),
+            (1.5, 1.5),
         )
 
-    def test_layered_controller_is_rejected(self):
+    def test_layered_mode_is_rejected(self):
         with self.assertRaisesRegex(
-            ValueError, "requires --qwen-role advisor"
+            ValueError, "requires joint frequency mode"
         ):
-            validate_frequencies(scheduler_args(qwen_role="controller"))
+            validate_frequencies(scheduler_args(frequency_mode="layered"))
 
     def test_inference_deadline_advances_past_current_tick(self):
         self.assertTrue(inference_is_due(2.0, 2.0))

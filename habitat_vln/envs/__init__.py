@@ -1,7 +1,11 @@
 """Habitat environment adapters and navigation-state helpers."""
 
+from importlib import import_module
+
 from .habitat_env import (
     ACTION_MAP,
+    ROBOT_BODY_NONE,
+    ROBOT_BODY_SIX_WHEEL,
     HabitatEnvironmentConfig,
     build_env,
     create_habitat_env,
@@ -16,13 +20,6 @@ from .habitat_state import (
     depth_stats,
     depth_to_meters,
     env_config,
-)
-from .six_wheel_robot import (
-    ROBOT_BODY_NONE,
-    ROBOT_BODY_SIX_WHEEL,
-    ROBOT_VIEW_UUID,
-    SixWheelRobotConfig,
-    SixWheelRobotEnvironment,
 )
 
 __all__ = [
@@ -45,3 +42,18 @@ __all__ = [
     "env_config",
     "step_navigation_action",
 ]
+
+
+_SIX_WHEEL_EXPORTS = {
+    "ROBOT_VIEW_UUID",
+    "SixWheelRobotConfig",
+    "SixWheelRobotEnvironment",
+}
+
+
+def __getattr__(name):
+    """Load optional Habitat-Sim six-wheel helpers only when they are requested."""
+    if name in _SIX_WHEEL_EXPORTS:
+        module = import_module(".six_wheel_robot", __name__)
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
