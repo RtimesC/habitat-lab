@@ -302,7 +302,37 @@ runtime/navigation_runner.py
 
 模型提示词要求伴随动作给出位置假设、置信度、观察证据、拓扑假设和下一步验证。当前仍缺少严格的结构化解析器与持久语义信念记录；在它们完成前，不能把一次有效低层动作误称为模型已经理解了建筑。
 
-### 15.3 唯一活动任务入口
+### 15.3 局部 Reactive Visual DoorNav B1
+
+Reactive Visual DoorNav B1 是一个可执行、可测试、可记录状态的**局部工程基线**。它只回答：当 doorway 出现在当前或最近的 RGB 观察中时，机器人能否用短时视觉跟踪完成局部搜索、居中、接近、重新获取、到达确认和停止。它不是整栋建筑的低先验语义导航方法，也不负责建筑级定位、跨楼层规划、拓扑推理或长时程搜索。
+
+B1 的核心视觉输入只有当前 RGB、局部自然语言指令和短时可观察历史。碰撞可以触发目标无关的局部恢复；Depth、LiDAR 或 proximity 只能作为可选的 target-free 安全信号，默认不启用 Depth。Hidden target coordinates、target distance、target bearing、success radius、shortest path、geodesic route、Oracle waypoint，以及由这些隐藏状态派生的 steering、STOP、progress 或 recovery，不得进入 grounder、tracker、executor 或 policy。评价器可以离线读取 simulator 真值评分，但不得反馈给策略。
+
+当前数据流是：
+
+```text
+local instruction + current RGB
+  -> deterministic OpenCV doorway engineering grounder
+  -> short-horizon IoU visual tracker
+  -> SEARCH / TRACK / APPROACH / AVOID / REACQUIRE / VERIFY
+  -> STOP / FAILED
+```
+
+RGB bounding box、归一化 image center 和 bbox area ratio 只能称为 image-space observable cues。bbox area ratio 不是真实物理距离，也不能跨相机、场景或 doorway 形状解释成绝对距离。当前居中、面积和连续确认阈值是 `unvalidated engineering default`；它们只支持 synthetic/easy-split 工程验证，不能称为 benchmark calibration 或 benchmark-ready 能力。OpenCV grounder 只是确定性工程基线，不是开放世界 doorway 识别器。
+
+B1 的状态、原因、候选框、短时 track、避障状态与终止原因写入 trajectory policy metadata。它可以作为 future belief-graph and active-verification method 选择局部语义目标后的执行模块，但这种复用不会把建筑信念、拓扑或主动验证能力算作 B1 自身能力。
+
+显式运行方式为：
+
+```bash
+conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
+  --experiment-config habitat_vln/configs/runtime/reactive_doornav_b1.yaml \
+  --task-config benchmark/nav/your_semantic_indoor_task.yaml
+```
+
+`baseline_spec.yaml` 是 B1 参数及其语义的唯一版本化真值来源；runtime YAML 只选择 `reactive_doornav_b1` 和该 spec，不复制阈值。
+
+### 15.4 唯一活动任务入口
 
 `habitat_vln_nav.py` 只运行目标无关的直接动作闭环。真实室内语义任务必须显式提供任务配置，避免默认回落到 PointNav：
 
@@ -329,7 +359,7 @@ conda run -n habitat_vlm python habitat_vln/habitat_vln_nav.py \
 
 未知字段会被拒绝，防止目标坐标或路线答案以其他名称混入策略输入。
 
-### 15.4 当前可验证能力与验证方式
+### 15.5 当前可验证能力与验证方式
 
 在专用楼宇语义数据和 Habitat 任务适配器完成前，唯一可运行的无模型回归配置是：
 

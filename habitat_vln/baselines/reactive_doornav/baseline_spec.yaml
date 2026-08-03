@@ -1,14 +1,61 @@
 schema_version: 1
 name: reactive_doornav_b1
-description: Versioned Phase A specification for RGB-first, image-space, observable-only reactive visual DoorNav.
-status: scaffold_only
+description: Versioned local RGB-first, image-space, observable-only reactive visual DoorNav engineering baseline.
+status: engineering_baseline
 instruction: Find and safely approach the visible doorway using current and recent visual observations.
-max_search_steps: 24
-max_episode_steps: 200
-arrival_area_ratio_threshold: 0.18
-arrival_center_tolerance_norm: 0.15
-arrival_confirm_frames: 3
-grounding_confidence_threshold: 0.55
-target_lost_tolerance_steps: 3
-no_progress_tolerance_steps: 8
 output_dir: habitat_vln/outputs/reactive_doornav/b1
+parameters:
+  max_search_steps:
+    value: 24
+    semantics: Maximum local rotation-search actions allowed before an auditable failure.
+  max_episode_steps:
+    value: 200
+    semantics: Maximum non-terminal local actions allowed before an auditable failure.
+  arrival_area_ratio_threshold:
+    value: 0.18
+    semantics: Unvalidated image fraction at or above which a centered visible doorway enters arrival verification.
+  arrival_center_tolerance_norm:
+    value: 0.15
+    semantics: Maximum absolute normalized horizontal image-center offset accepted for approach and verification.
+  arrival_confirm_frames:
+    value: 3
+    semantics: Consecutive visible centered frames satisfying the image-area rule required before STOP.
+  grounding_confidence_threshold:
+    value: 0.55
+    semantics: Minimum deterministic contour confidence accepted as a doorway candidate for tracking.
+  target_lost_tolerance_steps:
+    value: 3
+    semantics: Consecutive missing observations for which the last image-space track is retained for local reacquisition.
+  no_progress_tolerance_steps:
+    value: 8
+    semantics: Consecutive centered visible updates without sufficient image-area growth tolerated before reacquisition.
+  min_area_progress:
+    value: 0.002
+    semantics: Minimum bounding-box image-area-ratio increase counted as observable approach progress.
+  tracker_match_iou_threshold:
+    value: 0.1
+    semantics: Minimum image-space IoU required to associate a new candidate with an existing visible target identity.
+  tracker_confidence_decay:
+    value: 0.8
+    semantics: Multiplicative confidence decay applied once per missing target observation.
+  grounder_min_area_ratio:
+    value: 0.02
+    semantics: Minimum image fraction covered by a contour bounding box to form an engineering doorway candidate.
+  grounder_max_area_ratio:
+    value: 0.65
+    semantics: Maximum image fraction covered by a contour bounding box, excluding frame-scale contours.
+  grounder_min_aspect_ratio:
+    value: 1.2
+    semantics: Minimum bounding-box height divided by width for a tall doorway-shaped contour.
+  grounder_min_height_ratio:
+    value: 0.25
+    semantics: Minimum fraction of image height covered by a doorway-shaped contour.
+  grounder_nms_iou_threshold:
+    value: 0.45
+    semantics: Maximum overlap retained between deterministic contour candidates during image-space NMS.
+  grounder_max_candidates:
+    value: 5
+    semantics: Maximum number of deterministic contour candidates recorded for one RGB observation.
+  use_depth_for_avoidance:
+    value: false
+    semantics: Whether optional target-free local depth may choose the collision-recovery turn direction; disabled by default.

@@ -13,7 +13,10 @@ from typing import (
     runtime_checkable,
 )
 
-from ...core import NavigationObservation
+try:
+    from ...core import NavigationObservation
+except ImportError:
+    from core import NavigationObservation
 
 
 # The existing action set lives in the policy-prompt layer. Importing it here
@@ -32,12 +35,19 @@ PRIVILEGED_FIELD_DENYLIST: FrozenSet[str] = frozenset(
         "goal_distance_m",
         "goal_angle",
         "goal_angle_deg",
+        "goal_bearing",
+        "goal_steering",
         "success_distance",
         "success_distance_m",
         "success_radius",
         "shortest_path",
         "geodesic_distance",
         "oracle_waypoint",
+        "oracle_route",
+        "geodesic_route",
+        "target_bearing",
+        "target_coordinates",
+        "target_distance",
         "global_x",
         "global_y",
         "waypoint_position",
@@ -159,7 +169,9 @@ class VisualTargetTrack:
         if self.visible and self.missing_steps != 0:
             raise ValueError("a visible track must have zero missing_steps")
         if not self.visible and self.missing_steps == 0:
-            raise ValueError("a missing track must have at least one missing step")
+            raise ValueError(
+                "a missing track must have at least one missing step"
+            )
         if not isinstance(self.source, str) or not self.source.strip():
             raise ValueError("source must be a non-empty string")
 
@@ -173,12 +185,48 @@ class LocalExecutionDecision:
     reason: str
     target_track: Optional[VisualTargetTrack]
     obstacle_avoidance_active: bool
+    termination_reason: Optional[DoorNavTerminationReason] = None
 
     def __post_init__(self):
         """Keep execution actions within the active project vocabulary."""
+        if not isinstance(self.state, DoorNavState):
+            raise ValueError("state must be a DoorNavState")
         if self.action not in DOORNAV_ACTIONS:
             raise ValueError(
                 f"action must be one of {sorted(DOORNAV_ACTIONS)}"
+            )
+        if self.termination_reason is not None and not isinstance(
+            self.termination_reason, DoorNavTerminationReason
+        ):
+            raise ValueError(
+                "termination_reason must be a DoorNavTerminationReason or None"
+            )
+        terminal = self.state in {DoorNavState.STOP, DoorNavState.FAILED}
+        if terminal and self.termination_reason is None:
+            raise ValueError("terminal decisions require a termination_reason")
+        if not terminal and self.termination_reason is not None:
+            raise ValueError(
+                "non-terminal decisions cannot carry a termination_reason"
+            )
+        if terminal and self.action != "stop":
+            raise ValueError("terminal decisions must use the stop action")
+        if not terminal and self.action == "stop":
+            raise ValueError("the stop action requires a terminal state")
+        if (
+            self.state == DoorNavState.STOP
+            and self.termination_reason
+            != DoorNavTerminationReason.REACHED_DOOR
+        ):
+            raise ValueError(
+                "STOP requires the reached-door termination reason"
+            )
+        if (
+            self.state == DoorNavState.FAILED
+            and self.termination_reason
+            == DoorNavTerminationReason.REACHED_DOOR
+        ):
+            raise ValueError(
+                "FAILED cannot use the reached-door termination reason"
             )
 
 
@@ -187,6 +235,7 @@ class DoorGrounder(Protocol):
     """Detect door candidates using only RGB evidence and local instruction."""
 
     def detect(self, rgb: Any, instruction: str) -> Sequence[DoorCandidate]:
+        """Return doorway candidates derived from current RGB evidence."""
         ...
 
 
@@ -195,6 +244,7 @@ class VisualTargetTracker(Protocol):
     """Track doorway candidates using RGB image-space evidence only."""
 
     def reset(self) -> None:
+        """Forget any track retained from a previous episode."""
         ...
 
     def update(
@@ -203,6 +253,7 @@ class VisualTargetTracker(Protocol):
         candidates: Sequence[DoorCandidate],
         step: int,
     ) -> Optional[VisualTargetTrack]:
+        """Update a short-term image-space target track."""
         ...
 
 
@@ -211,6 +262,7 @@ class ReactiveVisualExecutor(Protocol):
     """Choose atomic actions from observable visual and target-free context."""
 
     def reset(self) -> None:
+        """Reset the local execution state machine."""
         ...
 
     def step(
@@ -218,4 +270,5 @@ class ReactiveVisualExecutor(Protocol):
         observation: NavigationObservation,
         target: Optional[VisualTargetTrack],
     ) -> LocalExecutionDecision:
+        """Choose one action using observable input and an optional track."""
         ...

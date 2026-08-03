@@ -1,3 +1,5 @@
+"""Contract tests for the local observable-only Reactive DoorNav B1 seam."""
+
 import math
 import unittest
 from dataclasses import FrozenInstanceError
@@ -216,6 +218,79 @@ class DoorNavContractTest(unittest.TestCase):
                 target_track=make_visual_track(),
                 obstacle_avoidance_active=False,
             )
+
+    def test_local_execution_decision_validates_termination_reason(self):
+        decision = LocalExecutionDecision(
+            action="stop",
+            state=DoorNavState.STOP,
+            reason="observable arrival evidence was confirmed",
+            target_track=make_visual_track(),
+            obstacle_avoidance_active=False,
+            termination_reason=DoorNavTerminationReason.REACHED_DOOR,
+        )
+
+        self.assertEqual(
+            decision.termination_reason,
+            DoorNavTerminationReason.REACHED_DOOR,
+        )
+        with self.assertRaises(ValueError):
+            LocalExecutionDecision(
+                action="stop",
+                state=DoorNavState.FAILED,
+                reason="invalid termination reason",
+                target_track=None,
+                obstacle_avoidance_active=False,
+                termination_reason="target_lost",
+            )
+
+    def test_local_execution_decision_keeps_terminal_fields_consistent(self):
+        invalid_values = [
+            {
+                "action": "stop",
+                "state": DoorNavState.STOP,
+                "termination_reason": None,
+            },
+            {
+                "action": "move_forward",
+                "state": DoorNavState.FAILED,
+                "termination_reason": DoorNavTerminationReason.POLICY_ERROR,
+            },
+            {
+                "action": "move_forward",
+                "state": DoorNavState.APPROACH,
+                "termination_reason": DoorNavTerminationReason.REACHED_DOOR,
+            },
+            {
+                "action": "stop",
+                "state": DoorNavState.APPROACH,
+                "termination_reason": None,
+            },
+            {
+                "action": "stop",
+                "state": DoorNavState.STOP,
+                "termination_reason": DoorNavTerminationReason.POLICY_ERROR,
+            },
+            {
+                "action": "stop",
+                "state": DoorNavState.FAILED,
+                "termination_reason": DoorNavTerminationReason.REACHED_DOOR,
+            },
+            {
+                "action": "move_forward",
+                "state": "approach",
+                "termination_reason": None,
+            },
+        ]
+
+        for values in invalid_values:
+            with self.subTest(values=values):
+                with self.assertRaises(ValueError):
+                    LocalExecutionDecision(
+                        reason="inconsistent terminal fields",
+                        target_track=None,
+                        obstacle_avoidance_active=False,
+                        **values,
+                    )
 
     def test_contract_dataclasses_are_frozen(self):
         candidate = DoorCandidate(

@@ -74,6 +74,18 @@ class NavigationController:
         action = output.action
         messages = []
 
+        if action is None:
+            if output.is_valid:
+                raise RuntimeError(
+                    "A valid policy output must include an action"
+                )
+            return ControlDecision(
+                vlm_action=None,
+                controller_action=None,
+                action=None,
+                policy_output=output,
+            )
+
         if (
             self.config.enable_forward_depth_guard
             and action == "move_forward"

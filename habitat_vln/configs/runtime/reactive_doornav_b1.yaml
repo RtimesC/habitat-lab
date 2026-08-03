@@ -1,6 +1,8 @@
 schema_version: 1
 name: reactive_doornav_b1
-description: Supported common defaults for the future B1 runtime; not a complete DoorNav preset.
+description: Local reactive visual DoorNav B1 engineering runtime; not a building-scale navigation method.
 arguments:
-  instruction: Find and safely approach the visible doorway using current and recent visual observations.
-  output_dir: habitat_vln/outputs/reactive_doornav/b1
+  policy: reactive_doornav_b1
+  baseline_spec: ../../baselines/reactive_doornav/baseline_spec.yaml
+  frequency_mode: joint
+  no_rate_limit: true
