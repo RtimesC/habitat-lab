@@ -1,7 +1,12 @@
 import argparse
 import os
+from pathlib import Path
 
 try:
+    from .baselines.reactive_doornav import (
+        ReactiveDoorNavPolicy,
+        load_reactive_doornav_spec,
+    )
     from .control import (
         ControllerConfig,
         NavigationController,
@@ -49,6 +54,10 @@ try:
         write_video,
     )
 except ImportError:
+    from baselines.reactive_doornav import (
+        ReactiveDoorNavPolicy,
+        load_reactive_doornav_spec,
+    )
     from control import (
         ControllerConfig,
         NavigationController,
@@ -142,10 +151,30 @@ _RUNTIME_API_COMPATIBILITY_EXPORTS = (
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTPUT_DIR = os.path.join(PROJECT_DIR, "outputs")
+DEFAULT_REACTIVE_DOORNAV_SPEC = os.path.join(
+    PROJECT_DIR,
+    "baselines",
+    "reactive_doornav",
+    "baseline_spec.yaml",
+)
+POLICY_CHOICES = ("qwen", "mock", "reactive_doornav_b1")
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--policy",
+        choices=POLICY_CHOICES,
+        default="qwen",
+        help=(
+            "Select qwen, mock, or reactive_doornav_b1. The B1 option is a "
+            "local reactive visual engineering baseline, not a building-scale policy."
+        ),
+    )
+    parser.add_argument(
+        "--baseline-spec",
+        help="Versioned parameter specification used by reactive_doornav_b1.",
+    )
     parser.add_argument(
         "--experiment-config",
         help=(
@@ -195,8 +224,8 @@ def parse_args(argv=None):
         help="Override the episode instruction. By default, use the VLN dataset instruction.",
     )
     parser.add_argument(
-        "--goal",
-        help="Alias fallback for --instruction when an episode has no instruction sensor.",
+        "--episode-instruction-fallback",
+        help="Fallback task text when an episode has no instruction sensor.",
     )
     parser.add_argument("--scene")
     parser.add_argument(
@@ -222,7 +251,7 @@ def parse_args(argv=None):
             "frames/video when --robot-body six_wheel is enabled."
         ),
     )
-    parser.add_argument("--max-steps", type=int, default=40)
+    parser.add_argument("--max-steps", type=int)
     parser.add_argument("--max-new-tokens", type=int, default=16)
     parser.add_argument("--device-map", default="auto")
     parser.add_argument("--torch-dtype", default="auto")
@@ -236,7 +265,7 @@ def parse_args(argv=None):
         default="float16",
         help="Compute dtype for bitsandbytes 4-bit quantization.",
     )
-    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--output-dir")
     parser.add_argument(
         "--output-group",
         help=(
@@ -342,7 +371,16 @@ def parse_args(argv=None):
             config_args.experiment_config,
             valid_arguments,
         )
-        parser.set_defaults(**experiment_config.arguments)
+        experiment_arguments = dict(experiment_config.arguments)
+        baseline_spec = experiment_arguments.get("baseline_spec")
+        if (
+            baseline_spec
+            and not Path(baseline_spec).expanduser().is_absolute()
+        ):
+            experiment_arguments["baseline_spec"] = str(
+                (experiment_config.path.parent / baseline_spec).resolve()
+            )
+        parser.set_defaults(**experiment_arguments)
 
     args = parser.parse_args(argv)
     args.experiment_name = (
@@ -352,6 +390,62 @@ def parse_args(argv=None):
         experiment_config.description if experiment_config is not None else ""
     )
     return args
+
+
+def build_navigation_policy(args):
+    """Build the explicitly selected policy and apply its versioned defaults."""
+    selected_policy = args.policy
+    if args.mock_policy:
+        if selected_policy not in {"qwen", "mock"}:
+            raise ValueError(
+                "--mock-policy cannot be combined with --policy "
+                f"{selected_policy}"
+            )
+        selected_policy = "mock"
+    args.policy = selected_policy
+
+    if selected_policy == "reactive_doornav_b1":
+        if args.no_stop:
+            raise ValueError("reactive_doornav_b1 requires observable STOP")
+        spec = load_reactive_doornav_spec(
+            args.baseline_spec or DEFAULT_REACTIVE_DOORNAV_SPEC
+        )
+        args.baseline_spec = str(spec.path)
+        if args.instruction is None:
+            args.instruction = spec.instruction
+        if args.output_dir is None:
+            args.output_dir = spec.output_dir
+        if args.max_steps is None:
+            # The extra runner tick records FAILED after the configured number
+            # of non-terminal local actions instead of ending silently.
+            args.max_steps = spec.config.max_episode_steps + 1
+        print(
+            "policy=reactive_doornav_b1 scope=local_reactive_visual "
+            f"status={spec.status} spec={spec.path}"
+        )
+        return ReactiveDoorNavPolicy(config=spec.config)
+
+    if args.baseline_spec:
+        raise ValueError(
+            "--baseline-spec is only valid for reactive_doornav_b1"
+        )
+    if args.output_dir is None:
+        args.output_dir = DEFAULT_OUTPUT_DIR
+    if args.max_steps is None:
+        args.max_steps = 40
+    if selected_policy == "mock":
+        return MockVLMPolicy(allowed_actions=args.allowed_actions)
+    return QwenVLMPolicy(
+        model_id=args.model_id,
+        device_map=args.device_map,
+        torch_dtype=args.torch_dtype,
+        max_new_tokens=args.max_new_tokens,
+        fallback_action=args.fallback_action,
+        allowed_actions=args.allowed_actions,
+        load_in_4bit=args.load_in_4bit,
+        bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
+        adapter_path=args.adapter_path,
+    )
 
 
 def main():
@@ -385,32 +479,18 @@ def main():
         )
     args.frequency_mode = "joint"
     validate_frequencies(args)
-    os.makedirs(args.output_dir, exist_ok=True)
     args.execution_actions = (
         set(EXPLORATION_ACTIONS) if args.no_stop else set(VALID_ACTIONS)
     )
     args.allowed_actions = set(args.execution_actions)
-    policy_fallback_action = args.fallback_action
     if args.fallback_action not in args.execution_actions:
         raise ValueError(
             f"--fallback-action must be one of {sorted(args.execution_actions)} "
             "with the current --no-stop setting."
         )
 
-    if args.mock_policy:
-        policy = MockVLMPolicy(allowed_actions=args.allowed_actions)
-    else:
-        policy = QwenVLMPolicy(
-            model_id=args.model_id,
-            device_map=args.device_map,
-            torch_dtype=args.torch_dtype,
-            max_new_tokens=args.max_new_tokens,
-            fallback_action=policy_fallback_action,
-            allowed_actions=args.allowed_actions,
-            load_in_4bit=args.load_in_4bit,
-            bnb_4bit_compute_dtype=args.bnb_4bit_compute_dtype,
-            adapter_path=args.adapter_path,
-        )
+    policy = build_navigation_policy(args)
+    os.makedirs(args.output_dir, exist_ok=True)
 
     controller = NavigationController(ControllerConfig.from_args(args))
     env = build_env(

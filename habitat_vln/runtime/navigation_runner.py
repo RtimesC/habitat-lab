@@ -296,9 +296,9 @@ def _execute_navigation(
                 episode_start_error = ""
                 if callable(start_episode):
                     start_episode(str(env.current_episode.episode_id))
-                episode_fallback = (
-                    episode_instruction_text(env.current_episode) or args.goal
-                )
+                episode_fallback = episode_instruction_text(
+                    env.current_episode
+                ) or getattr(args, "episode_instruction_fallback", None)
                 if grounded_demo_artifacts:
                     instruction = (
                         args.instruction
@@ -522,14 +522,14 @@ def _execute_navigation(
                             raise RuntimeError(episode_start_error)
                         last_policy_output = policy.predict(policy_observation)
                     except Exception as exc:
-                        raise RuntimeError(
+                        error = (
                             "policy_exception: " f"{type(exc).__name__}: {exc}"
-                        ) from exc
+                        )
                         last_policy_output = PolicyOutput(
                             action=None,
                             raw_text="",
                             is_valid=False,
-                            termination_reason=termination_reason,
+                            termination_reason="policy_exception",
                             metadata={"error": error},
                         )
                     inference_completed = True
