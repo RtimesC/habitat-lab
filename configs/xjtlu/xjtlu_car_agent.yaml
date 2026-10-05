@@ -1,0 +1,54 @@
+# @package _global_
+
+defaults:
+  - /habitat: habitat_config_base
+  - /habitat/task: pointnav
+  - /habitat/simulator/sensor_setups@habitat.simulator.agents.main_agent: rgbd_agent
+  - /habitat/dataset/pointnav: habitat_test
+  - /habitat/task/actions@habitat.task.actions.velocity_control: velocity_control
+  - /habitat/task/measurements@habitat.task.measurements.collisions: collisions
+  - _self_
+
+habitat:
+  environment:
+    max_episode_steps: 1000
+    iterator_options:
+      cycle: True
+      shuffle: False
+  task:
+    actions:
+      velocity_control:
+        lin_vel_range: [-1.0, 1.0]
+        ang_vel_range: [-180.0, 180.0]
+        min_abs_lin_speed: 0.001
+        min_abs_ang_speed: 0.01
+        time_step: 0.1
+  simulator:
+    type: Sim-v0
+    scene: "data/scene_datasets/habitat-test-scenes/skokloster-castle.glb"
+    default_agent_id: 0
+    forward_step_size: 0.1
+    turn_angle: 5
+    habitat_sim_v0:
+      gpu_device_id: 0
+      allow_sliding: True
+    agents:
+      main_agent:
+        radius: 0.38625
+        height: 0.5
+        sim_sensors:
+          rgb_sensor:
+            width: 640
+            height: 480
+            hfov: 90
+            position: [0.0, 0.45, 0.0]
+            orientation: [0.0, 0.0, 0.0]
+          depth_sensor:
+            width: 640
+            height: 480
+            hfov: 90
+            min_depth: 0.0
+            max_depth: 10.0
+            normalize_depth: False
+            position: [0.0, 0.45, 0.0]
+            orientation: [0.0, 0.0, 0.0]
